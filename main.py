@@ -1,257 +1,508 @@
-import io
-import numpy as np
-import pandas as pd
-import plotly.express as px
+
 import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from pathlib import Path
 
-st.set_page_config(page_title="Student Analytics", page_icon="🎓", layout="wide")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="Student Performance Analytics",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-BLUE = "#2563EB"
-DARK = "#102A56"
-BG = "#F4F7FC"
-
-st.markdown(f"""
+# ---------------- PROFESSIONAL THEME ----------------
+st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, [class*="css"] {{font-family:Inter,sans-serif;}}
-.stApp {{background:{BG};}}
-section[data-testid="stSidebar"] {{background:white;border-right:1px solid #E6ECF5;}}
-.hero {{background:linear-gradient(120deg,{DARK},#1D4ED8 65%,#60A5FA);border-radius:18px;padding:27px 30px;color:white;margin-bottom:18px;}}
-.hero h1 {{font-size:30px;color:white;margin:0 0 8px 0;}}
-.hero p {{color:#DBEAFE;margin:0;font-size:14px;}}
-.metric-card {{background:white;border:1px solid #E6ECF5;border-radius:15px;padding:17px 18px;min-height:105px;}}
-.metric-label {{color:#64748B;font-size:12px;font-weight:600;margin-bottom:8px;}}
-.metric-value {{color:#0F172A;font-size:27px;font-weight:800;line-height:1.1;}}
-.metric-foot {{color:#64748B;font-size:11px;margin-top:8px;}}
-.section-title {{font-size:19px;font-weight:750;color:#0F172A;margin:8px 0 2px;}}
-.section-subtitle {{font-size:12px;color:#64748B;margin-bottom:12px;}}
-.pill {{display:inline-block;background:#DBEAFE;color:#1D4ED8;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:700;}}
-.info-card {{background:white;border:1px solid #E6ECF5;border-radius:14px;padding:18px;}}
+.stApp {
+    background: linear-gradient(135deg, #081426 0%, #101f38 55%, #142943 100%);
+    color: #F1F5F9;
+}
+[data-testid="stHeader"] {
+    background: rgba(8,20,38,0.96);
+}
+[data-testid="stSidebar"] {
+    background: #0B1729;
+    border-right: 1px solid #263B55;
+}
+[data-testid="stSidebar"] * {
+    color: #F1F5F9 !important;
+}
+[data-testid="stMain"] p,
+[data-testid="stMain"] label,
+[data-testid="stMain"] span,
+[data-testid="stMain"] li,
+[data-testid="stMain"] h1,
+[data-testid="stMain"] h2,
+[data-testid="stMain"] h3 {
+    color: #F1F5F9;
+}
+h1 {
+    font-size: 2.25rem !important;
+    font-weight: 800 !important;
+}
+h2, h3 {
+    font-weight: 700 !important;
+}
+[data-testid="stMetric"] {
+    background: #172A43;
+    border: 1px solid #344B67;
+    padding: 18px;
+    border-radius: 14px;
+}
+[data-testid="stMetricLabel"] {
+    color: #CBD5E1 !important;
+}
+[data-testid="stMetricValue"] {
+    color: #67E8F9 !important;
+}
+div[data-baseweb="select"] > div {
+    background: #F8FAFC !important;
+    border: 1px solid #94A3B8 !important;
+}
+div[data-baseweb="select"] * {
+    color: #111827 !important;
+}
+div[data-baseweb="popover"] {
+    background: #FFFFFF !important;
+}
+div[data-baseweb="menu"] {
+    background: #FFFFFF !important;
+}
+div[data-baseweb="menu"] * {
+    color: #111827 !important;
+}
+input, textarea {
+    background: #FFFFFF !important;
+    color: #111827 !important;
+}
+[data-testid="stFileUploader"] {
+    background: #172A43;
+    border: 1px dashed #67E8F9;
+    border-radius: 12px;
+    padding: 12px;
+}
+[data-testid="stFileUploader"] * {
+    color: #F1F5F9 !important;
+}
+.stButton button, .stDownloadButton button {
+    background: #0891B2;
+    color: #FFFFFF !important;
+    border: none;
+    border-radius: 9px;
+    font-weight: 700;
+}
+.stButton button:hover, .stDownloadButton button:hover {
+    background: #0E7490;
+    color: #FFFFFF !important;
+    border: 1px solid #67E8F9;
+}
+[data-testid="stDataFrame"] {
+    background: #FFFFFF;
+    border-radius: 10px;
+}
+hr {
+    border-color: #344B67;
+}
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}
+div[data-testid="stAlert"] {
+    border-radius: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-def demo_data():
-    return pd.DataFrame({
-        "Student": ["Aman", "Priya", "Rahul", "Neha", "Rohit", "Sara", "Kabir", "Isha", "Dev", "Meera"],
-        "Math": [78, 92, 65, 88, 55, 84, 73, 96, 61, 89],
-        "Reading": [82, 95, 70, 90, 60, 87, 75, 94, 66, 91],
-        "Writing": [80, 94, 68, 91, 58, 89, 72, 97, 63, 93],
-    })
+# ---------------- LOAD DATA ----------------
+st.sidebar.title("🎓 Student Analytics")
+st.sidebar.caption("Academic Performance Dashboard")
+st.sidebar.divider()
 
-def metric_card(label, value, foot=""):
-    st.markdown(f'<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{value}</div><div class="metric-foot">{foot}</div></div>', unsafe_allow_html=True)
+uploaded_file = st.sidebar.file_uploader(
+    "Upload student CSV",
+    type=["csv"]
+)
 
-def section_title(title, subtitle=""):
-    st.markdown(f'<div class="section-title">{title}</div>', unsafe_allow_html=True)
-    if subtitle:
-        st.markdown(f'<div class="section-subtitle">{subtitle}</div>', unsafe_allow_html=True)
+possible_paths = [
+    Path("data/Cleaned_Students_Performance.csv"),
+    Path("Cleaned_Students_Performance.csv")
+]
 
-def load_csv(file):
-    raw = file.getvalue()
-    error = None
-    for encoding in ("utf-8", "utf-8-sig", "latin-1"):
-        try:
-            return pd.read_csv(io.BytesIO(raw), encoding=encoding, sep=None, engine="python")
-        except Exception as exc:
-            error = exc
-    raise ValueError(f"Could not read CSV: {error}")
+df = None
+source_name = None
 
-def numeric_cols(frame):
-    return frame.select_dtypes(include="number").columns.tolist()
-
-def score_cols(frame):
-    nums = numeric_cols(frame)
-    preferred = [c for c in nums if any(w in str(c).lower() for w in ("score", "marks", "math", "reading", "writing", "science", "english", "average", "grade"))]
-    return preferred or nums
-
-with st.sidebar:
-    st.markdown("## 🎓 Student Analytics")
-    st.caption("Performance Analysis System")
-    st.divider()
-    page = st.radio("NAVIGATION", ["Overview", "Data Explorer", "Subject Analysis", "Data Quality", "Prediction (Coming Soon)"])
-    st.divider()
-    uploaded = st.file_uploader("Upload student CSV", type=["csv"])
-    st.caption("Upload your own dataset to replace demo data.")
-    st.divider()
-    st.markdown("**How to use**")
-    st.caption("1. Upload CSV\n2. Explore records and charts\n3. Check data quality\n4. Add ML prediction after validating the target column")
-
-if uploaded:
+if uploaded_file is not None:
     try:
-        df = load_csv(uploaded)
-        df.columns = [str(c).strip().replace("\n", " ") for c in df.columns]
-        source = uploaded.name
+        df = pd.read_csv(uploaded_file)
+        source_name = uploaded_file.name
     except Exception as e:
-        st.error(str(e))
+        st.error(f"Unable to read uploaded CSV: {e}")
         st.stop()
 else:
-    df = demo_data()
-    source = "Built-in demo data"
+    for path in possible_paths:
+        if path.exists():
+            try:
+                df = pd.read_csv(path)
+                source_name = str(path)
+                break
+            except Exception:
+                pass
 
-if df.empty:
-    st.error("This CSV has no rows. Please upload a CSV with student records.")
+if df is None:
+    st.error(
+        "Student CSV not found. Upload your CSV using the sidebar, "
+        "or check that it exists inside the data folder."
+    )
     st.stop()
+
+# ---------------- CLEAN DATA ----------------
+df.columns = df.columns.str.strip()
+df = df.drop_duplicates().copy()
 
 for col in df.columns:
     if df[col].dtype == "object":
-        converted = pd.to_numeric(df[col].astype(str).str.replace(",", "", regex=False), errors="coerce")
-        count = df[col].notna().sum()
-        if count and converted.notna().sum() / count >= 0.85:
+        df[col] = df[col].replace(r"^\s*$", np.nan, regex=True)
+
+# Detect score columns automatically
+score_keywords = [
+    "score", "marks", "grade", "g1", "g2", "g3",
+    "math", "reading", "writing", "exam", "performance"
+]
+
+score_cols = []
+for col in df.columns:
+    name = col.lower().strip()
+    if any(word in name for word in score_keywords):
+        converted = pd.to_numeric(df[col], errors="coerce")
+        if converted.notna().sum() > 0:
             df[col] = converted
+            score_cols.append(col)
 
-scores = score_cols(df)
-if len(scores) >= 2 and "Average Score" not in df.columns:
-    df["Average Score"] = df[scores].mean(axis=1).round(2)
+# Numeric columns useful for analysis
+numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
 
-with st.sidebar:
-    st.markdown("### 🔎 Filters")
-    filterable = [c for c in df.columns if c not in numeric_cols(df) and 1 < df[c].nunique(dropna=True) <= 20]
-    filters = {}
-    for col in filterable[:3]:
-        opts = sorted(df[col].dropna().astype(str).unique().tolist())
-        filters[col] = st.multiselect(col, opts, default=opts, key=f"filter_{col}")
+# Exclude identifiers from average score if possible
+excluded = ["id", "student_id", "roll_no", "roll_number"]
+analysis_numeric = [
+    c for c in numeric_cols
+    if c.lower() not in excluded
+]
 
-view = df.copy()
-for col, opts in filters.items():
-    view = view[view[col].astype(str).isin(opts)]
-if view.empty:
-    st.warning("No rows match the selected filters. Clear or change the sidebar filters.")
-    st.stop()
+# ---------------- SIDEBAR FILTERS ----------------
+st.sidebar.subheader("🔎 Filters")
+filtered = df.copy()
 
-st.markdown(f"""
-<div class="hero">
-<span class="pill">STUDENT PERFORMANCE INTELLIGENCE</span>
-<h1>Performance Dashboard</h1>
-<p>Understand student outcomes with clear metrics, interactive charts, and data-quality checks.</p>
-</div>
-""", unsafe_allow_html=True)
-st.caption(f"Data source: **{source}** · Showing **{len(view):,}** of **{len(df):,}** records")
+categorical_cols = [
+    c for c in df.columns
+    if df[c].dtype == "object" and df[c].nunique(dropna=True) <= 30
+]
 
+for col in categorical_cols[:4]:
+    values = sorted(df[col].dropna().astype(str).unique().tolist())
+    if values:
+        selected = st.sidebar.multiselect(
+            col.replace("_", " ").title(),
+            values,
+            default=values,
+            key=f"filter_{col}"
+        )
+        filtered = filtered[
+            filtered[col].astype(str).isin(selected)
+        ]
+
+st.sidebar.divider()
+st.sidebar.caption(f"Data source: {source_name}")
+st.sidebar.caption("Built with Python, Pandas, Plotly & Streamlit")
+
+# ---------------- HEADER ----------------
+st.title("🎓 Student Performance Analysis")
+st.markdown(
+    "### Academic insights • Interactive analytics • Data-driven decisions"
+)
+st.markdown(
+    "Explore student records, compare academic indicators, "
+    "identify data-quality issues and download filtered data."
+)
+st.divider()
+
+# ---------------- NAVIGATION ----------------
+page = st.radio(
+    "Choose a section",
+    [
+        "Overview",
+        "Data Explorer",
+        "Performance Analysis",
+        "Data Quality"
+    ],
+    horizontal=True
+)
+
+st.divider()
+
+# ---------------- OVERVIEW ----------------
 if page == "Overview":
-    candidates = [c for c in score_cols(view) if c in view.columns]
-    main_score = "Average Score" if "Average Score" in view.columns else (candidates[0] if candidates else None)
-    if main_score:
-        avg, high, low = view[main_score].mean(), view[main_score].max(), view[main_score].min()
-    else:
-        avg = high = low = np.nan
-    a,b,c,d = st.columns(4)
-    with a: metric_card("TOTAL RECORDS", f"{len(view):,}", "Rows in current view")
-    with b: metric_card("AVERAGE SCORE", f"{avg:.1f}" if pd.notna(avg) else "N/A", main_score or "No numeric score column")
-    with c: metric_card("HIGHEST SCORE", f"{high:.1f}" if pd.notna(high) else "N/A", "Highest selected score")
-    with d: metric_card("LOWEST SCORE", f"{low:.1f}" if pd.notna(low) else "N/A", "Lowest selected score")
-    st.write("")
-    left,right = st.columns([1.3,1])
+    st.subheader("📊 Dashboard Overview")
+
+    total_students = len(filtered)
+    total_columns = len(filtered.columns)
+    missing_cells = int(filtered.isna().sum().sum())
+    duplicate_count = int(filtered.duplicated().sum())
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Student Records", f"{total_students:,}")
+    c2.metric("Data Features", total_columns)
+    c3.metric("Missing Values", f"{missing_cells:,}")
+    c4.metric("Duplicate Rows", f"{duplicate_count:,}")
+
+    st.markdown("### 📈 Dataset Summary")
+
+    left, right = st.columns(2)
+
     with left:
-        section_title("Score distribution", "How scores are spread across the selected records")
-        if main_score:
-            fig = px.histogram(view, x=main_score, nbins=15, color_discrete_sequence=[BLUE])
-            fig.update_layout(height=330, plot_bgcolor="white", paper_bgcolor="white", margin=dict(l=10,r=10,t=15,b=10))
-            fig.update_yaxes(gridcolor="#E8EEF7")
-            st.plotly_chart(fig, use_container_width=True)
-        else: st.info("Upload a dataset with numeric score columns.")
+        st.markdown("#### Dataset Preview")
+        st.dataframe(
+            filtered.head(10),
+            use_container_width=True,
+            hide_index=True
+        )
+
     with right:
-        section_title("Average by subject", "Mean value for detected score columns")
-        subjects = [c for c in candidates if c != "Average Score"]
-        if subjects:
-            means = view[subjects].mean().sort_values().reset_index()
-            means.columns = ["Subject","Average"]
-            fig = px.bar(means, x="Average", y="Subject", orientation="h", text_auto=".1f", color_discrete_sequence=[BLUE])
-            fig.update_layout(height=330, plot_bgcolor="white", paper_bgcolor="white", margin=dict(l=10,r=10,t=15,b=10))
-            st.plotly_chart(fig, use_container_width=True)
-        else: st.info("No numeric score columns detected.")
-    section_title("Student records", "Preview of the current data")
-    st.dataframe(view.head(15), use_container_width=True, hide_index=True)
-    st.download_button("⬇️ Download current view as CSV", view.to_csv(index=False).encode("utf-8"), "student_analysis_view.csv", "text/csv")
+        st.markdown("#### Missing Values by Column")
+        missing = filtered.isna().sum()
+        missing = missing[missing > 0].sort_values(ascending=False)
 
+        if not missing.empty:
+            missing_df = missing.rename("Missing Values").reset_index()
+            missing_df.columns = ["Column", "Missing Values"]
+            fig = px.bar(
+                missing_df,
+                x="Column",
+                y="Missing Values",
+                color="Missing Values",
+                color_continuous_scale="Teal",
+                template="plotly_dark"
+            )
+            fig.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font_color="#F1F5F9"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.success("No missing values in the filtered data.")
+
+    if analysis_numeric:
+        st.markdown("#### Numeric Feature Summary")
+        st.dataframe(
+            filtered[analysis_numeric].describe().round(2),
+            use_container_width=True
+        )
+
+# ---------------- DATA EXPLORER ----------------
 elif page == "Data Explorer":
-    section_title("Data Explorer", "Inspect the dataset and review its columns.")
-    a,b,c = st.columns(3)
-    with a: metric_card("ROWS", f"{len(view):,}", "Filtered records")
-    with b: metric_card("COLUMNS", f"{view.shape[1]:,}", "Available fields")
-    with c: metric_card("NUMERIC COLUMNS", f"{len(numeric_cols(view)):,}", "Numeric fields")
-    search = st.text_input("Search column names", placeholder="e.g. math, score, gender")
-    cols = [c for c in view.columns if search.lower() in str(c).lower()] if search else list(view.columns)
-    st.dataframe(view[cols], use_container_width=True, hide_index=True)
-    st.download_button("⬇️ Download filtered data", view.to_csv(index=False).encode("utf-8"), "student_data_filtered.csv", "text/csv")
-    summary = pd.DataFrame({"Column": view.columns, "Data type": [str(view[c].dtype) for c in view.columns], "Non-empty": [int(view[c].notna().sum()) for c in view.columns], "Missing": [int(view[c].isna().sum()) for c in view.columns], "Unique values": [int(view[c].nunique(dropna=True)) for c in view.columns]})
-    section_title("Column summary")
-    st.dataframe(summary, use_container_width=True, hide_index=True)
+    st.subheader("🗂️ Explore Student Data")
 
-elif page == "Subject Analysis":
-    section_title("Subject Analysis", "Compare numeric columns and explore score relationships.")
-    cols = score_cols(view)
-    chosen = st.multiselect("Choose columns to compare", cols, default=cols[:min(4,len(cols))])
-    if chosen:
-        means = view[chosen].mean().sort_values(ascending=False).reset_index()
-        means.columns = ["Column","Mean"]
-        fig = px.bar(means, x="Column", y="Mean", text_auto=".2f", color="Mean", color_continuous_scale="Blues")
-        fig.update_layout(height=360, plot_bgcolor="white", paper_bgcolor="white", coloraxis_showscale=False)
-        st.plotly_chart(fig, use_container_width=True)
-        if len(chosen) >= 2:
-            l,r = st.columns(2)
-            with l:
-                xcol = st.selectbox("X-axis", chosen, index=0)
-                ycol = st.selectbox("Y-axis", chosen, index=1)
-                fig = px.scatter(view, x=xcol, y=ycol, trendline="ols", opacity=.75, color_discrete_sequence=[BLUE])
-                fig.update_layout(height=350, plot_bgcolor="white", paper_bgcolor="white")
-                st.plotly_chart(fig, use_container_width=True)
-            with r:
-                section_title("Correlation matrix")
-                fig = px.imshow(view[chosen].corr(numeric_only=True), text_auto=".2f", color_continuous_scale="Blues", aspect="auto", zmin=-1, zmax=1)
-                fig.update_layout(height=350)
-                st.plotly_chart(fig, use_container_width=True)
-        section_title("Score statistics")
-        st.dataframe(view[chosen].describe().T.round(2), use_container_width=True)
+    st.write(
+        f"Showing **{len(filtered):,}** records "
+        f"and **{len(filtered.columns)}** columns."
+    )
 
-elif page == "Data Quality":
-    section_title("Data Quality", "Review missing values and duplicate records.")
-    missing = view.isna().sum()
-    a,b,c = st.columns(3)
-    with a: metric_card("MISSING CELLS", f"{int(missing.sum()):,}", "Across all columns")
-    with b: metric_card("DUPLICATE ROWS", f"{int(view.duplicated().sum()):,}", "Exact duplicate records")
-    with c: metric_card("MISSINGNESS", f"{missing.sum()/max(view.size,1)*100:.1f}%", "Percent of cells missing")
-    quality = pd.DataFrame({"Column":view.columns,"Missing values":[int(view[c].isna().sum()) for c in view.columns],"Missing %":[round(view[c].isna().mean()*100,2) for c in view.columns],"Unique values":[int(view[c].nunique(dropna=True)) for c in view.columns],"Data type":[str(view[c].dtype) for c in view.columns]}).sort_values("Missing %", ascending=False)
-    st.dataframe(quality, use_container_width=True, hide_index=True)
-    l,r = st.columns(2)
-    with l:
-        section_title("Missing values by column")
-        miss = quality[quality["Missing values"] > 0]
-        if len(miss):
-            fig = px.bar(miss, x="Missing values", y="Column", orientation="h", color_discrete_sequence=["#F59E0B"])
-            fig.update_layout(height=330, plot_bgcolor="white", paper_bgcolor="white")
+    search = st.text_input(
+        "Search across the displayed data",
+        placeholder="Type a name, school, gender or value..."
+    )
+
+    display_df = filtered.copy()
+
+    if search:
+        mask = display_df.astype(str).apply(
+            lambda col: col.str.contains(search, case=False, na=False)
+        ).any(axis=1)
+        display_df = display_df[mask]
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.download_button(
+        "⬇️ Download Filtered CSV",
+        data=display_df.to_csv(index=False).encode("utf-8"),
+        file_name="filtered_student_data.csv",
+        mime="text/csv"
+    )
+
+# ---------------- PERFORMANCE ANALYSIS ----------------
+elif page == "Performance Analysis":
+    st.subheader("📈 Academic & Numeric Analysis")
+
+    if not numeric_cols:
+        st.warning(
+            "No numeric columns found. Check the uploaded CSV format."
+        )
+    else:
+        chosen_col = st.selectbox(
+            "Select a numeric feature",
+            numeric_cols,
+            index=(
+                numeric_cols.index(score_cols[0])
+                if score_cols and score_cols[0] in numeric_cols
+                else 0
+            )
+        )
+
+        values = pd.to_numeric(
+            filtered[chosen_col], errors="coerce"
+        ).dropna()
+
+        if values.empty:
+            st.warning("No valid numeric values available for this feature.")
+        else:
+            a, b, c = st.columns(3)
+            a.metric("Average", f"{values.mean():.2f}")
+            b.metric("Median", f"{values.median():.2f}")
+            c.metric("Standard Deviation", f"{values.std():.2f}" if len(values) > 1 else "N/A")
+
+            left, right = st.columns(2)
+
+            with left:
+                st.markdown("#### Distribution")
+                fig = px.histogram(
+                    filtered,
+                    x=chosen_col,
+                    nbins=20,
+                    title=f"Distribution of {chosen_col}",
+                    color_discrete_sequence=["#22D3EE"],
+                    template="plotly_dark"
+                )
+                fig.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font_color="#F1F5F9"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            with right:
+                st.markdown("#### Box Plot")
+                fig = px.box(
+                    filtered,
+                    y=chosen_col,
+                    title=f"Spread of {chosen_col}",
+                    color_discrete_sequence=["#A78BFA"],
+                    template="plotly_dark"
+                )
+                fig.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font_color="#F1F5F9"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+        if len(score_cols) >= 2:
+            st.markdown("#### Compare Academic Indicators")
+            comparison = filtered[score_cols].apply(
+                pd.to_numeric, errors="coerce"
+            )
+            comparison = comparison.mean().reset_index()
+            comparison.columns = ["Feature", "Average"]
+
+            fig = px.bar(
+                comparison,
+                x="Feature",
+                y="Average",
+                color="Average",
+                color_continuous_scale="Teal",
+                template="plotly_dark"
+            )
+            fig.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font_color="#F1F5F9"
+            )
             st.plotly_chart(fig, use_container_width=True)
-        else: st.success("No missing values found in this view.")
-    with r:
-        section_title("Create a cleaned copy")
-        st.caption("The original file is not changed. Numeric missing values use median; text values use mode.")
-        if st.button("Prepare cleaned CSV", type="primary"):
-            clean = view.drop_duplicates().copy()
-            for col in numeric_cols(clean):
-                if clean[col].isna().any(): clean[col] = clean[col].fillna(clean[col].median())
-            for col in clean.columns:
-                if clean[col].dtype == "object" and clean[col].isna().any():
-                    mode = clean[col].mode(dropna=True)
-                    if not mode.empty: clean[col] = clean[col].fillna(mode.iloc[0])
-            st.session_state["clean_csv"] = clean.to_csv(index=False).encode("utf-8")
-        if "clean_csv" in st.session_state:
-            st.download_button("⬇️ Download cleaned CSV", st.session_state["clean_csv"], "student_data_cleaned.csv", "text/csv")
 
-else:
-    section_title("Prediction Module", "Machine learning will be added after confirming the real dataset and target column.")
-    st.markdown("""
-    <div class="info-card">
-      <span class="pill">PHASE 2</span>
-      <h3>Build a reliable prediction model</h3>
-      <p style="color:#475569">We will first confirm which fields are valid features and what outcome should be predicted.</p>
-      <ul style="color:#475569">
-        <li>Choose a target column, such as a final score if available.</li>
-        <li>Handle missing values and encode categorical fields.</li>
-        <li>Split data into training and testing sets.</li>
-        <li>Compare models and report evaluation metrics.</li>
-      </ul>
-      <p style="color:#64748B;font-size:12px">No predictions are generated in this version; this avoids showing unvalidated results.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.info("Upload your real CSV and inspect its columns in Data Explorer. Then we can add an appropriate ML model.")
+        if len(numeric_cols) >= 2:
+            st.markdown("#### Feature Correlation")
+            corr = filtered[numeric_cols].corr()
+            fig = px.imshow(
+                corr,
+                text_auto=".2f",
+                color_continuous_scale="RdBu_r",
+                zmin=-1,
+                zmax=1,
+                title="Correlation Between Numeric Features",
+                template="plotly_dark"
+            )
+            fig.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                font_color="#F1F5F9"
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-st.markdown('<p style="text-align:center;color:#94A3B8;font-size:11px;padding:20px 0">Student Analytics · Python · Streamlit · Pandas · Plotly</p>', unsafe_allow_html=True)
+# ---------------- DATA QUALITY ----------------
+elif page == "Data Quality":
+    st.subheader("🧹 Data Quality Report")
+
+    quality = pd.DataFrame({
+        "Column": filtered.columns,
+        "Data Type": [str(filtered[c].dtype) for c in filtered.columns],
+        "Missing Values": [int(filtered[c].isna().sum()) for c in filtered.columns],
+        "Missing (%)": [
+            round(filtered[c].isna().mean() * 100, 2)
+            for c in filtered.columns
+        ],
+        "Unique Values": [
+            int(filtered[c].nunique(dropna=True))
+            for c in filtered.columns
+        ]
+    })
+
+    st.dataframe(
+        quality,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.markdown("#### Missing Values Chart")
+    missing = filtered.isna().sum()
+    missing = missing[missing > 0].sort_values(ascending=False)
+
+    if not missing.empty:
+        missing_df = missing.rename("Count").reset_index()
+        missing_df.columns = ["Column", "Count"]
+        fig = px.bar(
+            missing_df,
+            x="Column",
+            y="Count",
+            color="Count",
+            color_continuous_scale="Teal",
+            template="plotly_dark"
+        )
+        fig.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#F1F5F9"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.success("Great! No missing values found in the current data.")
+
+    st.markdown("#### Duplicate Records")
+    st.write(f"Duplicate rows in filtered data: **{filtered.duplicated().sum()}**")
+
+    st.download_button(
+        "⬇️ Download Data Quality Report",
+        data=quality.to_csv(index=False).encode("utf-8"),
+        file_name="student_data_quality_report.csv",
+        mime="text/csv"
+    )
+
+# ---------------- FOOTER ----------------
+st.divider()
+st.caption(
+    "Student Performance Analytics | Python • Pandas • Plotly • Streamlit"
+)
