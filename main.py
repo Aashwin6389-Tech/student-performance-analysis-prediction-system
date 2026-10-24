@@ -1,7 +1,11 @@
+# main.py
+# Student Performance Analysis & Prediction System
+# Professional Streamlit Data Science Project
+
 import io
 import os
 import warnings
-from pathlib import Path
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -10,12 +14,24 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, ExtraTreesRegressor
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    precision_score,
+    recall_score,
+    f1_score,
+)
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.tree import DecisionTreeRegressor
 
 warnings.filterwarnings("ignore")
 
@@ -24,14 +40,14 @@ warnings.filterwarnings("ignore")
 # ============================================================
 
 st.set_page_config(
-    page_title="Student Analytics | Performance Intelligence",
+    page_title="StudentIQ | Performance Intelligence",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ============================================================
-# PROFESSIONAL DARK BLUE THEME
+# PROFESSIONAL THEME
 # ============================================================
 
 st.markdown(
@@ -39,1536 +55,1951 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-    :root {
-        --bg: #08111f;
-        --panel: #101d30;
-        --panel2: #14243a;
-        --border: #263b56;
-        --text: #edf4ff;
-        --muted: #9aadc6;
-        --blue: #60a5fa;
-        --cyan: #67e8f9;
-        --green: #34d399;
-    }
-
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
     }
 
     .stApp {
-        background:
-            radial-gradient(ellipse at top left, #142746 0%, transparent 42%),
-            linear-gradient(135deg, #08111f 0%, #0b1627 55%, #0c1b30 100%);
-        color: var(--text);
-    }
-
-    [data-testid="stHeader"] {
-        background: rgba(8, 17, 31, 0.85);
+        background: #08111f;
+        color: #e8eef8;
     }
 
     [data-testid="stSidebar"] {
-        background: #0b1729;
-        border-right: 1px solid var(--border);
+        background: #0d192a;
+        border-right: 1px solid #1e3048;
     }
 
     [data-testid="stSidebar"] * {
-        color: var(--text);
+        color: #dce7f7;
     }
 
-    h1, h2, h3, h4, p, label, li {
-        color: var(--text);
+    .block-container {
+        padding-top: 1.8rem;
+        padding-bottom: 3rem;
+        max-width: 1500px;
     }
 
-    h1 {
-        font-weight: 800 !important;
-        letter-spacing: -1.1px;
+    h1, h2, h3 {
+        color: #f1f6ff !important;
+        letter-spacing: -0.5px;
     }
 
-    h2, h3 {
-        font-weight: 700 !important;
-        letter-spacing: -0.3px;
+    p, label, span, li {
+        color: #d1dced;
+    }
+
+    [data-testid="stMetric"] {
+        background: linear-gradient(135deg, #12233a, #101d30);
+        border: 1px solid #233a56;
+        padding: 19px;
+        border-radius: 15px;
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #9fb4d0 !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: #f5f8ff !important;
+        font-weight: 800;
+    }
+
+    [data-testid="stMetricDelta"] {
+        color: #54d6a0 !important;
     }
 
     .hero {
-        background: linear-gradient(120deg, #142b49, #102039 55%, #142e4b);
-        border: 1px solid #2a4565;
-        padding: 30px 32px;
+        background: linear-gradient(120deg, #122a49, #15233d 60%, #102d43);
+        padding: 30px;
         border-radius: 20px;
-        margin: 8px 0 26px 0;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+        border: 1px solid #294968;
+        margin-bottom: 24px;
     }
 
     .hero-label {
-        color: #93c5fd;
+        color: #65d7ff;
         font-size: 12px;
         font-weight: 800;
-        text-transform: uppercase;
         letter-spacing: 2px;
+        text-transform: uppercase;
     }
 
     .hero-title {
-        color: #f4f8ff;
-        font-size: clamp(26px, 3.3vw, 39px);
+        font-size: 34px;
         font-weight: 800;
-        margin: 12px 0 8px 0;
-        line-height: 1.2;
+        color: #ffffff;
+        margin: 8px 0;
     }
 
     .hero-subtitle {
-        color: #b5c8e1;
+        color: #b8c9df;
         font-size: 14px;
-        line-height: 1.8;
+        line-height: 1.7;
         max-width: 850px;
     }
 
     .section-label {
-        color: #93c5fd;
-        font-size: 12px;
+        color: #67c8ff;
         text-transform: uppercase;
-        letter-spacing: 1.5px;
-        font-weight: 800;
-        margin-bottom: 6px;
-    }
-
-    .metric-card {
-        background: linear-gradient(145deg, #14243a, #0f1d30);
-        border: 1px solid #263d59;
-        border-radius: 16px;
-        padding: 20px;
-        min-height: 125px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-    }
-
-    .metric-label {
-        font-size: 12px;
-        color: #a6b8d0;
-        font-weight: 600;
-        margin-bottom: 10px;
-    }
-
-    .metric-value {
-        font-size: clamp(22px, 2.2vw, 31px);
-        color: #f1f7ff;
-        font-weight: 800;
-        line-height: 1.25;
-        overflow-wrap: anywhere;
-    }
-
-    .metric-foot {
-        color: #8da7c8;
         font-size: 11px;
-        margin-top: 8px;
+        letter-spacing: 1.8px;
+        font-weight: 800;
+        margin-bottom: 5px;
     }
 
     .info-card {
         background: #101e31;
-        border: 1px solid #263b56;
+        border: 1px solid #233a56;
         border-radius: 14px;
         padding: 18px;
-        margin-bottom: 12px;
+        height: 100%;
+    }
+
+    .info-card h4 {
+        margin: 0 0 9px 0;
+        color: #f1f6ff;
+        font-size: 15px;
+    }
+
+    .info-card p {
+        color: #aebfd4;
+        font-size: 13px;
+        line-height: 1.7;
+        margin-bottom: 0;
     }
 
     .muted {
-        color: #a6b8d0;
-    }
-
-    .status-pill {
-        display: inline-block;
-        padding: 6px 11px;
-        border-radius: 30px;
-        background: #123b37;
-        border: 1px solid #21685c;
-        color: #6ee7b7;
-        font-size: 11px;
-        font-weight: 700;
+        color: #96abc5;
+        font-size: 13px;
     }
 
     .stButton > button,
     .stDownloadButton > button {
-        background: linear-gradient(135deg, #2563eb, #0e7490);
-        color: white !important;
-        border: 1px solid #3b82f6;
         border-radius: 10px;
         font-weight: 700;
+        border: 1px solid #315a80;
         min-height: 42px;
     }
 
-    .stButton > button:hover,
-    .stDownloadButton > button:hover {
-        border-color: #93c5fd;
-        color: white !important;
-        filter: brightness(1.12);
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(90deg, #087ec4, #246de0);
+        color: white;
+        border: none;
     }
 
-    .stTextInput input,
-    .stNumberInput input,
-    .stDateInput input,
-    .stTextArea textarea {
-        background: #101e31 !important;
-        color: #f1f7ff !important;
-        border: 1px solid #344b68 !important;
-        border-radius: 9px !important;
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="input"] > div {
+        background: #101e31;
+        border-color: #2b405c;
     }
 
-    [data-baseweb="select"] > div {
-        background: #101e31 !important;
-        border-color: #344b68 !important;
-        color: #f1f7ff !important;
-        border-radius: 9px !important;
-    }
-
-    [data-baseweb="popover"],
-    [data-baseweb="menu"],
-    [role="listbox"] {
-        background: #14243a !important;
-    }
-
-    [role="option"] {
-        color: #f1f7ff !important;
-    }
-
-    [role="option"]:hover {
-        background: #24476b !important;
-    }
-
-    [data-testid="stDataFrame"],
-    [data-testid="stTable"] {
-        border: 1px solid #263b56;
+    [data-testid="stDataFrame"] {
+        border: 1px solid #253a55;
         border-radius: 12px;
         overflow: hidden;
     }
 
-    [data-testid="stMetric"] {
-        background: #101e31;
-        border: 1px solid #263b56;
-        border-radius: 12px;
-        padding: 14px;
-    }
-
-    [data-testid="stMetricLabel"] {
-        color: #a6b8d0 !important;
-    }
-
-    [data-testid="stMetricValue"] {
-        color: #f1f7ff !important;
-    }
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        border-bottom: 1px solid #263b56;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        color: #a6b8d0;
-        border-radius: 8px 8px 0 0;
-        padding: 12px 16px;
-    }
-
-    .stTabs [aria-selected="true"] {
-        color: #93c5fd !important;
-        border-bottom-color: #60a5fa !important;
-    }
-
     hr {
-        border-color: #263b56;
+        border-color: #22354d;
     }
 
-    [data-testid="stAlert"] {
+    .footer {
+        text-align: center;
+        color: #8298b4;
+        font-size: 12px;
+        padding: 20px 0 0 0;
+    }
+
+    div[data-testid="stAlert"] {
         border-radius: 12px;
-    }
-
-    footer {
-        visibility: hidden;
-    }
-
-    @media (max-width: 700px) {
-        .hero {
-            padding: 22px 18px;
-        }
-        .metric-card {
-            padding: 14px;
-        }
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# ============================================================
-# CONSTANTS AND HELPERS
-# ============================================================
-
-DATA_CANDIDATES = [
-    Path("data/Cleaned_Students_Performance.csv"),
-    Path("Cleaned_Students_Performance.csv"),
+CHART_TEMPLATE = "plotly_dark"
+CHART_COLORS = [
+    "#38bdf8",
+    "#818cf8",
+    "#34d399",
+    "#fbbf24",
+    "#fb7185",
+    "#c084fc",
+    "#2dd4bf",
 ]
 
-PLOT_TEMPLATE = "plotly_dark"
-PALETTE = ["#60a5fa", "#67e8f9", "#34d399", "#fbbf24", "#c084fc", "#fb7185"]
 
-ID_HINTS = (
-    "student_id", "studentid", "roll_no", "rollno",
-    "registration_id", "record_id", "index",
-)
+# ============================================================
+# DATA LOADING
+# ============================================================
 
-DERIVED_HINTS = (
-    "total_score", "total_marks", "average_score",
-    "average_marks", "overall_score", "overall_average",
-    "final_score", "final_result",
-)
-
-TARGET_HINTS = (
-    "score", "marks", "grade", "math", "reading",
-    "writing", "g1", "g2", "g3", "exam", "result",
-)
+DEFAULT_DATA_PATHS = [
+    "data/Cleaned_Students_Performance.csv",
+    "Cleaned_Students_Performance.csv",
+    "data/student_performance.csv",
+    "student_performance.csv",
+]
 
 
-def clean_column_name(name):
-    return str(name).strip()
+def normalize_columns(df):
+    df = df.copy()
+    df.columns = [
+        str(c).strip().replace("\ufeff", "")
+        for c in df.columns
+    ]
+    return df
 
 
-def safe_filename(name):
-    allowed = "".join(
-        char if char.isalnum() or char in "-_" else "_"
-        for char in str(name)
-    )
-    return allowed[:80] or "report"
-
-
-def load_csv_bytes(uploaded_file):
-    raw = uploaded_file.getvalue()
-    errors = []
+@st.cache_data(show_spinner=False)
+def read_csv_bytes(file_bytes):
+    last_error = None
 
     for encoding in ("utf-8", "utf-8-sig", "latin-1"):
         try:
-            return pd.read_csv(io.BytesIO(raw), encoding=encoding)
+            return normalize_columns(
+                pd.read_csv(io.BytesIO(file_bytes), encoding=encoding)
+            )
         except Exception as exc:
-            errors.append(str(exc))
+            last_error = exc
 
-    raise ValueError("Could not read the CSV file. Please verify its format.")
+    raise ValueError(f"Could not read the CSV file: {last_error}")
 
 
-def load_default_data():
-    for path in DATA_CANDIDATES:
-        if path.exists():
+@st.cache_data(show_spinner=False)
+def load_default_dataset(path, modified_time):
+    del modified_time
+    return normalize_columns(pd.read_csv(path))
+
+
+def load_data():
+    uploaded_file = st.session_state.get("uploaded_dataset")
+
+    if uploaded_file is not None:
+        try:
+            return read_csv_bytes(uploaded_file.getvalue()), uploaded_file.name
+        except Exception as exc:
+            st.error(f"Unable to read uploaded dataset: {exc}")
+            return None, None
+
+    for path in DEFAULT_DATA_PATHS:
+        if os.path.exists(path):
             try:
-                return pd.read_csv(path), str(path)
+                return (
+                    load_default_dataset(path, os.path.getmtime(path)),
+                    os.path.basename(path),
+                )
             except Exception as exc:
-                st.error(f"Could not load {path}: {exc}")
+                st.error(f"Unable to load {path}: {exc}")
 
     return None, None
 
 
-def standardize_frame(df):
-    data = df.copy()
-    data.columns = [clean_column_name(c) for c in data.columns]
-    data = data.loc[:, ~data.columns.duplicated()].copy()
+# ============================================================
+# DATA HELPERS
+# ============================================================
 
-    # Convert object columns only when nearly all non-empty values are numeric.
-    for col in data.select_dtypes(include=["object", "string"]).columns:
-        original = data[col]
-        stripped = original.astype("string").str.strip()
-        numeric = pd.to_numeric(stripped, errors="coerce")
-        nonempty = stripped.notna() & stripped.ne("")
-        denominator = int(nonempty.sum())
-
-        if denominator > 0:
-            ratio = numeric[nonempty].notna().mean()
-            if ratio >= 0.95:
-                data[col] = numeric
-
-    return data
-
-
-def numeric_columns(df):
+def get_numeric_columns(df):
     return df.select_dtypes(include=np.number).columns.tolist()
 
 
-def categorical_columns(df):
+def get_categorical_columns(df):
     return df.select_dtypes(
-        include=["object", "string", "category", "bool"]
+        include=["object", "category", "bool", "string"]
     ).columns.tolist()
 
 
-def is_identifier(col):
-    name = str(col).lower().replace(" ", "_")
-    return any(hint in name for hint in ID_HINTS)
-
-
-def is_derived(col):
-    name = str(col).lower().replace(" ", "_")
-    return any(hint in name for hint in DERIVED_HINTS)
-
-
-def suggested_target_columns(df):
-    nums = numeric_columns(df)
-    candidates = [
-        c for c in nums
-        if any(hint in str(c).lower() for hint in TARGET_HINTS)
-        and not is_derived(c)
-        and not is_identifier(c)
+def get_score_columns(df):
+    numeric_cols = get_numeric_columns(df)
+    preferred = [
+        c for c in numeric_cols
+        if any(
+            token in c.lower()
+            for token in [
+                "score", "mark", "grade", "math", "reading",
+                "writing", "exam", "g1", "g2", "g3", "result"
+            ]
+        )
+        and not any(
+            token in c.lower()
+            for token in ["id", "roll", "index", "student_number"]
+        )
     ]
+    return preferred or numeric_cols
+
+
+def identify_target_candidates(df):
+    candidates = get_score_columns(df)
+
+    derived_hints = [
+        "total_score", "total_marks", "average_score",
+        "average_marks", "overall_score", "overall_average",
+        "final_score", "final_result", "percentage",
+    ]
+
+    candidates = [
+        c for c in candidates
+        if not any(hint in c.lower() for hint in derived_hints)
+    ]
+
     return candidates
 
 
-def chart_layout(fig, height=360):
+def numeric_summary(df):
+    numeric = df.select_dtypes(include=np.number)
+
+    if numeric.empty:
+        return pd.DataFrame()
+
+    return numeric.describe().T.reset_index().rename(
+        columns={"index": "Feature"}
+    )
+
+
+def make_download_button(label, data, filename, mime, key):
+    st.download_button(
+        label=label,
+        data=data,
+        file_name=filename,
+        mime=mime,
+        key=key,
+        use_container_width=True,
+    )
+
+
+def dataframe_to_csv(df):
+    return df.to_csv(index=False).encode("utf-8-sig")
+
+
+def fig_style(fig, height=390):
     fig.update_layout(
-        template=PLOT_TEMPLATE,
+        template=CHART_TEMPLATE,
         height=height,
+        margin=dict(l=15, r=15, t=55, b=15),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif", color="#dce8f8"),
-        margin=dict(l=20, r=20, t=55, b=25),
+        font=dict(family="Inter, sans-serif", color="#d4e1f2", size=12),
+        title_font=dict(size=16, color="#f1f6ff"),
         legend=dict(
             bgcolor="rgba(0,0,0,0)",
             borderwidth=0,
         ),
-        title=dict(
-            font=dict(size=16, color="#eaf2ff"),
-            x=0.02,
-            xanchor="left",
-        ),
     )
     fig.update_xaxes(
-        gridcolor="#24364e",
-        zerolinecolor="#344b68",
-        linecolor="#344b68",
+        gridcolor="#20334a",
+        zerolinecolor="#20334a",
+        automargin=True,
     )
     fig.update_yaxes(
-        gridcolor="#24364e",
-        zerolinecolor="#344b68",
-        linecolor="#344b68",
+        gridcolor="#20334a",
+        zerolinecolor="#20334a",
+        automargin=True,
     )
     return fig
 
 
-def show_metric(label, value, foot=""):
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-            <div class="metric-foot">{foot}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+def make_profile(df):
+    rows = []
+
+    for col in df.columns:
+        series = df[col]
+        rows.append({
+            "Column": col,
+            "Data Type": str(series.dtype),
+            "Non-Null": int(series.notna().sum()),
+            "Missing": int(series.isna().sum()),
+            "Missing %": round(series.isna().mean() * 100, 2),
+            "Unique Values": int(series.nunique(dropna=True)),
+        })
+
+    return pd.DataFrame(rows)
+
+
+def get_cleaned_copy(df, remove_duplicates=False, fill_missing=False):
+    cleaned = df.copy()
+
+    if remove_duplicates:
+        cleaned = cleaned.drop_duplicates()
+
+    if fill_missing:
+        for col in cleaned.columns:
+            if cleaned[col].isna().sum() == 0:
+                continue
+
+            if pd.api.types.is_numeric_dtype(cleaned[col]):
+                median = cleaned[col].median()
+                if pd.notna(median):
+                    cleaned[col] = cleaned[col].fillna(median)
+            else:
+                mode = cleaned[col].mode(dropna=True)
+                if not mode.empty:
+                    cleaned[col] = cleaned[col].fillna(mode.iloc[0])
+
+    return cleaned
+
+
+def format_number(value, digits=2):
+    try:
+        if pd.isna(value):
+            return "N/A"
+        return f"{float(value):,.{digits}f}"
+    except (ValueError, TypeError):
+        return str(value)
+
+
+# ============================================================
+# MODEL HELPERS
+# ============================================================
+
+def make_preprocessor(X):
+    numeric_features = X.select_dtypes(include=np.number).columns.tolist()
+    categorical_features = [
+        c for c in X.columns if c not in numeric_features
+    ]
+
+    transformers = []
+
+    if numeric_features:
+        numeric_pipeline = Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ])
+        transformers.append(
+            ("numeric", numeric_pipeline, numeric_features)
+        )
+
+    if categorical_features:
+        categorical_pipeline = Pipeline([
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("encoder", OneHotEncoder(handle_unknown="ignore")),
+        ])
+        transformers.append(
+            ("categorical", categorical_pipeline, categorical_features)
+        )
+
+    return ColumnTransformer(
+        transformers=transformers,
+        remainder="drop",
     )
 
 
-def csv_bytes(df):
-    return df.to_csv(index=False).encode("utf-8-sig")
+def make_regression_model(name):
+    if name == "Random Forest":
+        return RandomForestRegressor(
+            n_estimators=250,
+            random_state=42,
+            min_samples_leaf=1,
+            n_jobs=-1,
+        )
+
+    if name == "Extra Trees":
+        return ExtraTreesRegressor(
+            n_estimators=250,
+            random_state=42,
+            n_jobs=-1,
+        )
+
+    if name == "Decision Tree":
+        return DecisionTreeRegressor(random_state=42)
+
+    if name == "Ridge Regression":
+        return Ridge(alpha=1.0)
+
+    return LinearRegression()
 
 
-def build_summary(df):
-    rows = [
-        ("Rows", len(df)),
-        ("Columns", len(df.columns)),
-        ("Duplicate rows", int(df.duplicated().sum())),
-        ("Missing cells", int(df.isna().sum().sum())),
-        ("Missing percentage", round(
-            df.isna().sum().sum() / max(df.size, 1) * 100, 2
-        )),
+@st.cache_data(show_spinner=False)
+def train_regression_models(df, target, features, test_size, model_names):
+    model_data = df[features + [target]].copy()
+    model_data = model_data.replace([np.inf, -np.inf], np.nan)
+    model_data = model_data.dropna(subset=[target])
+
+    if len(model_data) < 10:
+        raise ValueError(
+            "At least 10 rows with a valid target are recommended for model training."
+        )
+
+    if model_data[target].nunique() < 2:
+        raise ValueError("The target must contain at least two distinct values.")
+
+    X = model_data[features].copy()
+    y = model_data[target].copy()
+
+    numeric_features = X.select_dtypes(include=np.number).columns.tolist()
+    categorical_features = [
+        c for c in X.columns if c not in numeric_features
     ]
 
-    for col in numeric_columns(df):
-        series = df[col].dropna()
-        if len(series):
-            rows.extend([
-                (f"{col} - mean", round(float(series.mean()), 3)),
-                (f"{col} - median", round(float(series.median()), 3)),
-                (f"{col} - standard deviation", round(float(series.std()), 3)),
-                (f"{col} - minimum", round(float(series.min()), 3)),
-                (f"{col} - maximum", round(float(series.max()), 3)),
+    usable_features = []
+
+    for col in numeric_features:
+        if X[col].notna().sum() > 0:
+            usable_features.append(col)
+
+    for col in categorical_features:
+        if X[col].notna().sum() > 0:
+            usable_features.append(col)
+
+    if not usable_features:
+        raise ValueError(
+            "No usable feature columns remain after removing all-empty columns."
+        )
+
+    X = X[usable_features]
+
+    if len(X) < 10:
+        raise ValueError("Not enough valid rows for a train/test split.")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=test_size,
+        random_state=42,
+    )
+
+    results = []
+    fitted_models = {}
+    predictions = {}
+
+    for model_name in model_names:
+        try:
+            preprocessor = make_preprocessor(X_train)
+            estimator = make_regression_model(model_name)
+
+            pipeline = Pipeline([
+                ("preprocessor", preprocessor),
+                ("model", estimator),
             ])
 
-    return pd.DataFrame(rows, columns=["Metric", "Value"])
+            pipeline.fit(X_train, y_train)
+            y_pred = pipeline.predict(X_test)
+
+            mae = mean_absolute_error(y_test, y_pred)
+            rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+
+            try:
+                r2 = r2_score(y_test, y_pred)
+            except Exception:
+                r2 = np.nan
+
+            results.append({
+                "Model": model_name,
+                "MAE": float(mae),
+                "RMSE": float(rmse),
+                "R² Score": float(r2),
+            })
+
+            fitted_models[model_name] = pipeline
+            predictions[model_name] = np.asarray(y_pred)
+
+        except Exception as exc:
+            results.append({
+                "Model": model_name,
+                "MAE": np.nan,
+                "RMSE": np.nan,
+                "R² Score": np.nan,
+                "Error": str(exc),
+            })
+
+    metrics = pd.DataFrame(results)
+
+    if "MAE" in metrics.columns:
+        valid = metrics.dropna(subset=["MAE"])
+        if not valid.empty:
+            best_model_name = valid.sort_values("MAE").iloc[0]["Model"]
+        else:
+            best_model_name = None
+    else:
+        best_model_name = None
+
+    return {
+        "metrics": metrics,
+        "models": fitted_models,
+        "predictions": predictions,
+        "X_test": X_test,
+        "y_test": y_test,
+        "features": usable_features,
+        "best_model": best_model_name,
+        "row_count": len(model_data),
+    }
+
+
+def get_feature_importance(pipeline, feature_names):
+    try:
+        estimator = pipeline.named_steps["model"]
+        preprocessor = pipeline.named_steps["preprocessor"]
+
+        encoded_names = preprocessor.get_feature_names_out()
+
+        if hasattr(estimator, "feature_importances_"):
+            importance = estimator.feature_importances_
+        elif hasattr(estimator, "coef_"):
+            importance = np.abs(np.asarray(estimator.coef_)).ravel()
+        else:
+            return pd.DataFrame()
+
+        if len(encoded_names) != len(importance):
+            return pd.DataFrame()
+
+        output = pd.DataFrame({
+            "Feature": encoded_names,
+            "Importance": importance,
+        })
+
+        output["Feature"] = (
+            output["Feature"]
+            .str.replace("numeric__", "", regex=False)
+            .str.replace("categorical__", "", regex=False)
+            .str.replace("onehot__", "", regex=False)
+        )
+
+        return output.sort_values(
+            "Importance", ascending=False
+        ).head(20)
+
+    except Exception:
+        return pd.DataFrame()
 
 
 # ============================================================
-# HEADER
+# HEADER AND SIDEBAR
 # ============================================================
 
-st.markdown(
+st.sidebar.markdown(
     """
-    <div class="hero">
-        <div class="hero-label">STUDENT INTELLIGENCE PLATFORM</div>
-        <div class="hero-title">Student Performance Analytics</div>
-        <div class="hero-subtitle">
-            Explore academic data, uncover performance patterns, assess data
-            quality, and evaluate machine-learning predictions in one
-            interactive workspace.
+    <div style="padding:8px 0 20px 0">
+        <div style="font-size:12px;letter-spacing:2px;color:#5cc9ff;font-weight:800">
+            STUDENTIQ
         </div>
-        <br>
-        <span class="status-pill">● ANALYTICS WORKSPACE</span>
+        <div style="font-size:22px;font-weight:800;color:#ffffff;margin-top:5px">
+            Performance<br>Intelligence
+        </div>
+        <div style="font-size:12px;color:#91a8c5;margin-top:8px">
+            Academic Analytics Platform
+        </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# ============================================================
-# SIDEBAR AND DATA LOADING
-# ============================================================
-
-st.sidebar.markdown("## 🎓 Student Analytics")
-st.sidebar.caption("Performance Intelligence Platform")
-st.sidebar.divider()
-
-uploaded_file = st.sidebar.file_uploader(
-    "Upload student CSV",
-    type=["csv"],
-    help="Upload a CSV to analyze it without changing the repository dataset.",
-)
-
-default_df, default_source = load_default_data()
-
-if uploaded_file is not None:
-    try:
-        source_df = load_csv_bytes(uploaded_file)
-        source_name = uploaded_file.name
-    except Exception as exc:
-        st.error(f"CSV upload failed: {exc}")
-        st.stop()
-elif default_df is not None:
-    source_df = default_df
-    source_name = default_source
-else:
-    st.error(
-        "No default dataset was found. Add "
-        "`data/Cleaned_Students_Performance.csv` to the repository "
-        "or upload a CSV using the sidebar."
-    )
-    st.stop()
-
-if source_df.empty:
-    st.error("The selected CSV has no data rows.")
-    st.stop()
-
-df = standardize_frame(source_df)
-original_row_count = len(df)
-
-st.sidebar.markdown("### Workspace")
 page = st.sidebar.radio(
-    "Navigate",
+    "WORKSPACE",
     [
         "Overview",
         "Data Explorer",
         "Performance Analytics",
         "ML Prediction",
+        "Student Risk",
         "Data Quality",
         "Export Center",
     ],
+    label_visibility="visible",
 )
 
 st.sidebar.divider()
-st.sidebar.markdown("### Dataset")
-st.sidebar.caption(f"Source: `{source_name}`")
-st.sidebar.caption(f"{len(df):,} records · {len(df.columns):,} columns")
 
-if uploaded_file is not None:
-    st.sidebar.info(
-        "You are analyzing the uploaded file. "
-        "The repository dataset remains unchanged."
-    )
-
-with st.sidebar.expander("About this application"):
-    st.write(
-        "Built with Streamlit, Pandas, NumPy, Plotly and Scikit-learn. "
-        "Predictions are estimates and depend on the quality and suitability "
-        "of the selected dataset."
-    )
-
-# ============================================================
-# GLOBAL FILTERS
-# ============================================================
+uploaded_file = st.sidebar.file_uploader(
+    "Upload your dataset",
+    type=["csv"],
+    key="uploaded_dataset",
+    help="Upload a CSV file containing student data.",
+)
 
 st.sidebar.markdown("### Data filters")
 
-filtered_df = df.copy()
-cats = categorical_columns(df)
+df_original, dataset_name = load_data()
 
-if cats:
-    with st.sidebar.expander("Filter categories", expanded=False):
-        for col in cats[:8]:
-            values = sorted(
-                df[col].dropna().astype(str).unique().tolist()
-            )
-            if 1 < len(values) <= 100:
-                selected = st.multiselect(
-                    f"{col}",
-                    options=values,
-                    default=[],
-                    key=f"filter_{col}",
-                )
-                if selected:
-                    filtered_df = filtered_df[
-                        filtered_df[col].astype(str).isin(selected)
-                    ]
+if df_original is None or df_original.empty:
+    st.markdown(
+        """
+        <div class="hero">
+            <div class="hero-label">StudentIQ • Setup</div>
+            <div class="hero-title">Welcome to StudentIQ</div>
+            <div class="hero-subtitle">
+                Your academic performance intelligence workspace.
+                Upload a CSV dataset to begin exploring, analyzing and
+                predicting student performance.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-nums = numeric_columns(df)
+    st.info(
+        "No default dataset was found. Upload your student CSV using "
+        "the sidebar, or add your file to "
+        "`data/Cleaned_Students_Performance.csv` in your repository."
+    )
 
-if nums:
-    with st.sidebar.expander("Filter numeric ranges", expanded=False):
-        for col in nums[:6]:
-            series = pd.to_numeric(df[col], errors="coerce").dropna()
-            if series.empty:
-                continue
-
-            low = float(series.min())
-            high = float(series.max())
-
-            if low < high:
-                chosen_range = st.slider(
-                    f"{col}",
-                    min_value=low,
-                    max_value=high,
-                    value=(low, high),
-                    key=f"range_{col}",
-                )
-                filtered_df = filtered_df[
-                    pd.to_numeric(filtered_df[col], errors="coerce")
-                    .between(chosen_range[0], chosen_range[1])
-                ]
-
-if filtered_df.empty:
-    st.warning("No rows match the current filters.")
+    st.markdown("### Recommended dataset columns")
+    st.write(
+        "The app works best with a mix of numeric and categorical columns, "
+        "such as math_score, reading_score, writing_score, gender, "
+        "parental_level_of_education, lunch, or test_preparation_course."
+    )
     st.stop()
 
-st.sidebar.caption(f"{len(filtered_df):,} rows after filters")
+if len(df_original.columns) == 0:
+    st.error("The dataset has no columns.")
+    st.stop()
+
+if len(df_original) == 0:
+    st.error("The dataset has no rows.")
+    st.stop()
+
+df_original = normalize_columns(df_original)
+
+if df_original.columns.duplicated().any():
+    st.error(
+        "Your dataset contains duplicate column names. Please rename "
+        "duplicate columns and upload it again."
+    )
+    st.stop()
+
+categorical_columns = get_categorical_columns(df_original)
+numeric_columns = get_numeric_columns(df_original)
+
+filters = {}
+
+with st.sidebar.expander("Categorical filters", expanded=False):
+    for col in categorical_columns[:15]:
+        values = (
+            df_original[col]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+        values = sorted(values)
+
+        if 0 < len(values) <= 100:
+            selected = st.multiselect(
+                col,
+                options=values,
+                default=[],
+                key=f"filter_cat_{col}",
+            )
+            if selected:
+                filters[col] = selected
+
+with st.sidebar.expander("Numeric filters", expanded=False):
+    for col in numeric_columns[:10]:
+        series = df_original[col].dropna()
+
+        if series.empty or series.nunique() < 2:
+            continue
+
+        low = float(series.min())
+        high = float(series.max())
+
+        if not np.isfinite(low) or not np.isfinite(high) or low >= high:
+            continue
+
+        selected_range = st.slider(
+            col,
+            min_value=low,
+            max_value=high,
+            value=(low, high),
+            key=f"filter_num_{col}",
+        )
+
+        if selected_range != (low, high):
+            filters[col] = selected_range
+
+df = df_original.copy()
+
+for col, selected in filters.items():
+    if col in categorical_columns:
+        df = df[df[col].astype(str).isin(selected)]
+    elif col in numeric_columns:
+        low, high = selected
+        df = df[df[col].between(low, high) | df[col].isna()]
+
+if df.empty:
+    st.warning("No records match the current filters.")
+    if st.sidebar.button("Clear all filters", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            if key.startswith("filter_cat_") or key.startswith("filter_num_"):
+                del st.session_state[key]
+        st.rerun()
+    st.stop()
+
+st.sidebar.divider()
+st.sidebar.caption(f"Dataset: {dataset_name}")
+st.sidebar.caption(f"Rows loaded: {len(df_original):,}")
+st.sidebar.caption(f"Rows after filters: {len(df):,}")
+st.sidebar.caption(f"Columns: {len(df_original.columns):,}")
+
+st.markdown(
+    f"""
+    <div class="hero">
+        <div class="hero-label">Academic Intelligence Platform</div>
+        <div class="hero-title">Student Performance Analysis</div>
+        <div class="hero-subtitle">
+            Transform student data into meaningful insights with interactive
+            analytics, machine learning predictions, academic risk indicators
+            and exportable reports.
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    f"""
+    <div class="muted" style="margin-top:-12px;margin-bottom:22px">
+        Dataset: <b>{dataset_name}</b>
+        &nbsp; • &nbsp; Last session: {datetime.now().strftime("%d %b %Y, %I:%M %p")}
+        &nbsp; • &nbsp; Showing {len(df):,} of {len(df_original):,} records
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # ============================================================
 # OVERVIEW
 # ============================================================
 
 if page == "Overview":
-    st.markdown('<div class="section-label">EXECUTIVE OVERVIEW</div>',
-                unsafe_allow_html=True)
-    st.title("Performance at a glance")
-    st.caption(
-        "A high-level summary of the currently filtered student dataset."
+    st.markdown('<div class="section-label">Executive overview</div>', unsafe_allow_html=True)
+    st.header("Your academic data at a glance")
+    st.write(
+        "A high-level snapshot of the dataset, its completeness and the "
+        "main numerical indicators."
     )
 
-    total_cells = filtered_df.size
-    missing_cells = int(filtered_df.isna().sum().sum())
-    missing_pct = missing_cells / max(total_cells, 1) * 100
-    duplicate_rows = int(filtered_df.duplicated().sum())
+    total_records = len(df)
+    total_features = len(df.columns)
+    missing_cells = int(df.isna().sum().sum())
+    total_cells = int(df.shape[0] * df.shape[1])
+    completeness = (
+        100 * (1 - missing_cells / total_cells)
+        if total_cells else 100
+    )
+    duplicate_count = int(df.duplicated().sum())
 
-    c1, c2, c3, c4 = st.columns(4)
+    m1, m2, m3, m4 = st.columns(4)
 
-    with c1:
-        show_metric("TOTAL RECORDS", f"{len(filtered_df):,}", "Filtered student records")
-    with c2:
-        show_metric("FEATURES", f"{len(filtered_df.columns):,}", "Available columns")
-    with c3:
-        show_metric("MISSING CELLS", f"{missing_cells:,}", f"{missing_pct:.2f}% of cells")
-    with c4:
-        show_metric("DUPLICATE ROWS", f"{duplicate_rows:,}", "Exact duplicate records")
+    m1.metric("Student Records", f"{total_records:,}")
+    m2.metric("Data Features", f"{total_features:,}")
+    m3.metric("Data Completeness", f"{completeness:.1f}%")
+    m4.metric("Duplicate Rows", f"{duplicate_count:,}")
 
-    st.write("")
-    left, right = st.columns([1.3, 1])
+    st.divider()
+
+    left, right = st.columns([1.25, 1])
 
     with left:
-        st.markdown("### Dataset profile")
-        profile = pd.DataFrame({
-            "Column": filtered_df.columns,
-            "Data type": [str(t) for t in filtered_df.dtypes],
-            "Missing values": [
-                int(filtered_df[c].isna().sum())
-                for c in filtered_df.columns
-            ],
-            "Unique values": [
-                int(filtered_df[c].nunique(dropna=True))
-                for c in filtered_df.columns
-            ],
-        })
-        st.dataframe(profile, use_container_width=True, hide_index=True)
+        st.subheader("Dataset composition")
+
+        if numeric_columns:
+            numeric_count = len(numeric_columns)
+            categorical_count = len(categorical_columns)
+            other_count = max(
+                0, total_features - numeric_count - categorical_count
+            )
+
+            composition = pd.DataFrame({
+                "Type": ["Numeric", "Categorical", "Other"],
+                "Columns": [numeric_count, categorical_count, other_count],
+            })
+
+            fig = px.pie(
+                composition,
+                names="Type",
+                values="Columns",
+                hole=0.65,
+                color_discrete_sequence=CHART_COLORS,
+                title="Feature types",
+            )
+            fig.update_traces(
+                textposition="outside",
+                textinfo="label+percent",
+            )
+            st.plotly_chart(
+                fig_style(fig, 360),
+                use_container_width=True,
+            )
+        else:
+            st.info("No numeric columns were detected in the current dataset.")
 
     with right:
-        st.markdown("### Data completeness")
-        completeness = (
-            (1 - filtered_df.isna().mean()) * 100
-        ).reset_index()
-        completeness.columns = ["Column", "Completeness (%)"]
-        completeness = completeness.sort_values("Completeness (%)")
+        st.subheader("Data completeness by feature")
+
+        profile = make_profile(df).sort_values("Missing %", ascending=False)
 
         fig = px.bar(
-            completeness,
-            x="Completeness (%)",
+            profile.head(15).sort_values("Missing %"),
+            x="Missing %",
             y="Column",
             orientation="h",
-            range_x=[0, 100],
-            color="Completeness (%)",
-            color_continuous_scale=["#fb7185", "#fbbf24", "#34d399"],
-            title="Completeness by column",
+            color="Missing %",
+            color_continuous_scale=["#34d399", "#38bdf8", "#fb7185"],
+            title="Features with the most missing values",
         )
-        st.plotly_chart(chart_layout(fig, 400), use_container_width=True)
-
-    if nums:
-        st.markdown("### Numeric indicators")
-        cols = st.columns(min(4, len(nums)))
-        for i, col in enumerate(nums[:4]):
-            series = pd.to_numeric(filtered_df[col], errors="coerce").dropna()
-            with cols[i]:
-                mean_value = series.mean() if len(series) else np.nan
-                show_metric(
-                    col.upper(),
-                    f"{mean_value:,.2f}" if pd.notna(mean_value) else "N/A",
-                    "Mean of filtered records",
-                )
-
-    st.markdown("### Quick actions")
-    q1, q2, q3 = st.columns(3)
-
-    with q1:
-        st.download_button(
-            "⬇ Download filtered CSV",
-            data=csv_bytes(filtered_df),
-            file_name="filtered_student_data.csv",
-            mime="text/csv",
+        st.plotly_chart(
+            fig_style(fig, 360),
             use_container_width=True,
         )
 
-    with q2:
-        st.download_button(
-            "⬇ Download data profile",
-            data=csv_bytes(profile),
-            file_name="student_data_profile.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+    st.divider()
 
-    with q3:
-        st.download_button(
-            "⬇ Download summary",
-            data=csv_bytes(build_summary(filtered_df)),
-            file_name="student_analytics_summary.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+    left, right = st.columns([1.25, 1])
+
+    with left:
+        st.subheader("Numerical summary")
+
+        summary = numeric_summary(df)
+
+        if not summary.empty:
+            st.dataframe(
+                summary,
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("No numerical columns available for summary.")
+
+    with right:
+        st.subheader("Quick data checks")
+
+        checks = [
+            ("Missing cells", f"{missing_cells:,}"),
+            ("Duplicate rows", f"{duplicate_count:,}"),
+            ("Numeric features", f"{len(numeric_columns):,}"),
+            ("Categorical features", f"{len(categorical_columns):,}"),
+        ]
+
+        for label, value in checks:
+            st.markdown(
+                f"""
+                <div class="info-card" style="margin-bottom:10px;padding:13px 16px">
+                    <div style="color:#96abc5;font-size:12px">{label}</div>
+                    <div style="color:#f1f6ff;font-size:22px;font-weight:800;margin-top:4px">
+                        {value}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.subheader("Preview records")
+    st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+
+    make_download_button(
+        "Download filtered dataset",
+        dataframe_to_csv(df),
+        "student_performance_filtered.csv",
+        "text/csv",
+        "overview_filtered_download",
+    )
+
 
 # ============================================================
 # DATA EXPLORER
 # ============================================================
 
 elif page == "Data Explorer":
-    st.markdown('<div class="section-label">DATA WORKSPACE</div>',
-                unsafe_allow_html=True)
-    st.title("Explore your dataset")
-    st.caption("Inspect records, data types, unique values and descriptive statistics.")
-
-    st.markdown("### Records")
-    search = st.text_input(
-        "Search across rows",
-        placeholder="Type a name, category, value or keyword...",
+    st.markdown('<div class="section-label">Explore your dataset</div>', unsafe_allow_html=True)
+    st.header("Data Explorer")
+    st.write(
+        "Search records, inspect columns and review descriptive statistics."
     )
 
-    view_df = filtered_df.copy()
+    c1, c2 = st.columns([2, 1])
 
-    if search.strip():
+    with c1:
+        search_text = st.text_input(
+            "Search across the dataset",
+            placeholder="Enter a name, category, score or keyword...",
+        )
+
+    with c2:
+        row_limit = st.selectbox(
+            "Rows to display",
+            [25, 50, 100, 250, 500, "All"],
+            index=1,
+        )
+
+    view_df = df.copy()
+
+    if search_text.strip():
         mask = view_df.astype(str).apply(
-            lambda column: column.str.contains(
-                search.strip(), case=False, regex=False, na=False
+            lambda col: col.str.contains(
+                search_text.strip(),
+                case=False,
+                na=False,
+                regex=False,
             )
         ).any(axis=1)
+
         view_df = view_df[mask]
 
-    st.caption(f"Showing {len(view_df):,} matching records")
+    st.caption(f"{len(view_df):,} records match your search.")
+
+    display_df = (
+        view_df if row_limit == "All"
+        else view_df.head(int(row_limit))
+    )
+
     st.dataframe(
-        view_df,
+        display_df,
         use_container_width=True,
+        hide_index=True,
         height=420,
+    )
+
+    make_download_button(
+        "Download search results",
+        dataframe_to_csv(view_df),
+        "student_search_results.csv",
+        "text/csv",
+        "explorer_download",
+    )
+
+    st.divider()
+
+    st.subheader("Column profile")
+
+    profile = make_profile(view_df)
+    st.dataframe(
+        profile,
+        use_container_width=True,
         hide_index=True,
     )
 
-    st.download_button(
-        "⬇ Download displayed records",
-        data=csv_bytes(view_df),
-        file_name="student_records.csv",
-        mime="text/csv",
-    )
+    st.subheader("Descriptive statistics")
 
-    st.markdown("### Descriptive statistics")
-    if nums:
+    summary = numeric_summary(view_df)
+
+    if not summary.empty:
         st.dataframe(
-            filtered_df[nums].describe().T.reset_index().rename(
-                columns={"index": "Column"}
-            ),
+            summary,
             use_container_width=True,
+            hide_index=True,
         )
     else:
-        st.info("No numeric columns were detected in this dataset.")
+        st.info("No numeric columns are available.")
 
-    st.markdown("### Column explorer")
-    selected_col = st.selectbox("Choose a column", df.columns.tolist())
-    selected_series = filtered_df[selected_col]
+    st.subheader("Inspect an individual feature")
 
-    a, b, c = st.columns(3)
-    a.metric("Data type", str(selected_series.dtype))
-    b.metric("Unique values", f"{selected_series.nunique(dropna=True):,}")
-    c.metric("Missing values", f"{selected_series.isna().sum():,}")
-
-    st.markdown("#### Most frequent values")
-    value_counts = (
-        selected_series.astype("string")
-        .fillna("(Missing)")
-        .value_counts()
-        .head(20)
-        .rename_axis("Value")
-        .reset_index(name="Count")
+    feature = st.selectbox(
+        "Select a column",
+        options=df.columns.tolist(),
+        key="explorer_feature",
     )
-    st.dataframe(value_counts, use_container_width=True, hide_index=True)
+
+    series = df[feature]
+
+    left, right = st.columns(2)
+
+    with left:
+        st.markdown("**Column information**")
+        st.write(f"**Data type:** {series.dtype}")
+        st.write(f"**Non-null values:** {series.notna().sum():,}")
+        st.write(f"**Missing values:** {series.isna().sum():,}")
+        st.write(f"**Unique values:** {series.nunique(dropna=True):,}")
+
+    with right:
+        st.markdown("**Most frequent values**")
+        frequency = (
+            series.astype("string")
+            .fillna("Missing")
+            .value_counts()
+            .head(15)
+            .rename_axis("Value")
+            .reset_index(name="Count")
+        )
+        st.dataframe(frequency, use_container_width=True, hide_index=True)
+
 
 # ============================================================
 # PERFORMANCE ANALYTICS
 # ============================================================
 
 elif page == "Performance Analytics":
-    st.markdown('<div class="section-label">EXPLORATORY DATA ANALYSIS</div>',
-                unsafe_allow_html=True)
-    st.title("Performance analytics")
-    st.caption("Explore distributions, compare groups and inspect relationships.")
+    st.markdown('<div class="section-label">Discover patterns</div>', unsafe_allow_html=True)
+    st.header("Performance Analytics")
+    st.write(
+        "Understand score distributions, feature relationships and "
+        "differences between student groups."
+    )
 
-    if not nums:
-        st.warning("No numeric columns are available for numerical analysis.")
-    else:
-        selected_num = st.selectbox(
-            "Primary numeric measure",
-            nums,
-            index=0,
+    if not numeric_columns:
+        st.warning(
+            "This page requires numeric columns. Please upload a dataset "
+            "containing marks, scores or other numeric measurements."
+        )
+        st.stop()
+
+    score_columns = get_score_columns(df)
+    selected_score = st.selectbox(
+        "Primary score feature",
+        options=score_columns,
+        key="analytics_score",
+    )
+
+    score_series = df[selected_score].dropna()
+
+    if not score_series.empty:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Average", format_number(score_series.mean()))
+        c2.metric("Median", format_number(score_series.median()))
+        c3.metric("Minimum", format_number(score_series.min()))
+        c4.metric("Maximum", format_number(score_series.max()))
+
+    st.divider()
+
+    left, right = st.columns(2)
+
+    with left:
+        fig = px.histogram(
+            df,
+            x=selected_score,
+            nbins=30,
+            marginal="box",
+            color_discrete_sequence=["#38bdf8"],
+            title=f"Distribution of {selected_score}",
+        )
+        st.plotly_chart(
+            fig_style(fig, 420),
+            use_container_width=True,
         )
 
-        series = pd.to_numeric(
-            filtered_df[selected_num], errors="coerce"
-        ).dropna()
+    with right:
+        fig = px.box(
+            df,
+            y=selected_score,
+            points="outliers",
+            color_discrete_sequence=["#818cf8"],
+            title=f"Spread and outliers: {selected_score}",
+        )
+        st.plotly_chart(
+            fig_style(fig, 420),
+            use_container_width=True,
+        )
 
-        a, b, c, d = st.columns(4)
-        a.metric("Mean", f"{series.mean():,.2f}" if len(series) else "N/A")
-        b.metric("Median", f"{series.median():,.2f}" if len(series) else "N/A")
-        c.metric("Std. deviation", f"{series.std():,.2f}" if len(series) > 1 else "N/A")
-        d.metric("Valid values", f"{len(series):,}")
+    st.subheader("Relationship between two features")
 
-        left, right = st.columns(2)
+    if len(numeric_columns) >= 2:
+        col1, col2 = st.columns(2)
 
-        with left:
-            fig = px.histogram(
-                filtered_df,
-                x=selected_num,
-                nbins=30,
-                marginal="box",
-                title=f"Distribution of {selected_num}",
-                color_discrete_sequence=["#60a5fa"],
-            )
-            st.plotly_chart(chart_layout(fig), use_container_width=True)
-
-        with right:
-            fig = px.box(
-                filtered_df,
-                y=selected_num,
-                points="outliers",
-                title=f"Spread and outliers: {selected_num}",
-                color_discrete_sequence=["#67e8f9"],
-            )
-            st.plotly_chart(chart_layout(fig), use_container_width=True)
-
-        st.markdown("### Compare two numeric variables")
-
-        if len(nums) >= 2:
-            col1, col2 = st.columns(2)
-            with col1:
-                x_col = st.selectbox("X-axis", nums, index=0)
-            with col2:
-                default_y = 1 if len(nums) > 1 else 0
-                y_col = st.selectbox("Y-axis", nums, index=default_y)
-
-            scatter_data = filtered_df[[x_col, y_col]].dropna()
-
-            if not scatter_data.empty:
-                fig = px.scatter(
-                    filtered_df,
-                    x=x_col,
-                    y=y_col,
-                    trendline="ols" if len(scatter_data) >= 3 else None,
-                    title=f"{y_col} vs {x_col}",
-                    opacity=0.75,
-                    color_discrete_sequence=["#60a5fa"],
-                )
-                st.plotly_chart(chart_layout(fig, 420), use_container_width=True)
-            else:
-                st.info("No complete rows are available for this comparison.")
-
-        st.markdown("### Correlation heatmap")
-
-        if len(nums) >= 2:
-            corr = filtered_df[nums].corr(numeric_only=True)
-            fig = px.imshow(
-                corr,
-                text_auto=".2f",
-                aspect="auto",
-                color_continuous_scale="RdBu_r",
-                zmin=-1,
-                zmax=1,
-                title="Pearson correlation between numeric variables",
-            )
-            st.plotly_chart(chart_layout(fig, 500), use_container_width=True)
-            st.caption(
-                "Correlation describes linear association, not causation."
-            )
-        else:
-            st.info("At least two numeric columns are required for a correlation heatmap.")
-
-        st.markdown("### Group comparison")
-
-        if cats:
-            cat_col = st.selectbox("Group by category", cats)
-            group_num = st.selectbox(
-                "Measure to summarize",
-                nums,
+        with col1:
+            x_feature = st.selectbox(
+                "X-axis",
+                numeric_columns,
                 index=0,
-                key="group_measure",
+                key="analytics_x",
             )
 
-            grouped = (
-                filtered_df.groupby(cat_col, dropna=False)[group_num]
-                .agg(["count", "mean", "median"])
-                .reset_index()
-                .sort_values("mean", ascending=False)
-                .head(30)
+        y_options = [c for c in numeric_columns if c != x_feature]
+
+        with col2:
+            y_feature = st.selectbox(
+                "Y-axis",
+                y_options,
+                index=0,
+                key="analytics_y",
             )
 
-            st.dataframe(grouped, use_container_width=True, hide_index=True)
+        color_options = ["None"] + categorical_columns
+        color_feature = st.selectbox(
+            "Group points by category (optional)",
+            color_options,
+            key="analytics_color",
+        )
 
-            fig = px.bar(
-                grouped,
-                x=cat_col,
-                y="mean",
-                color="mean",
-                title=f"Average {group_num} by {cat_col}",
-                color_continuous_scale="Blues",
+        color_arg = None if color_feature == "None" else color_feature
+
+        fig = px.scatter(
+            df,
+            x=x_feature,
+            y=y_feature,
+            color=color_arg,
+            opacity=0.8,
+            hover_data=df.columns[: min(5, len(df.columns))].tolist(),
+            title=f"{x_feature} vs {y_feature}",
+        )
+
+        st.plotly_chart(
+            fig_style(fig, 470),
+            use_container_width=True,
+        )
+
+        corr = df[[x_feature, y_feature]].corr().iloc[0, 1]
+
+        if pd.notna(corr):
+            st.info(
+                f"Pearson correlation between {x_feature} and {y_feature}: "
+                f"**{corr:.3f}**. Correlation indicates association, "
+                "not necessarily causation."
             )
-            st.plotly_chart(chart_layout(fig, 420), use_container_width=True)
-        else:
-            st.info("No categorical columns were detected for group comparisons.")
+    else:
+        st.info("At least two numeric features are needed for a scatter plot.")
+
+    st.divider()
+    st.subheader("Correlation matrix")
+
+    if len(numeric_columns) >= 2:
+        corr_df = df[numeric_columns].corr(numeric_only=True)
+
+        fig = px.imshow(
+            corr_df,
+            text_auto=".2f",
+            aspect="auto",
+            color_continuous_scale="RdBu_r",
+            zmin=-1,
+            zmax=1,
+            title="Numeric feature correlations",
+        )
+        st.plotly_chart(
+            fig_style(fig, max(420, 45 * len(numeric_columns))),
+            use_container_width=True,
+        )
+
+        make_download_button(
+            "Download correlation matrix",
+            corr_df.to_csv().encode("utf-8-sig"),
+            "correlation_matrix.csv",
+            "text/csv",
+            "correlation_download",
+        )
+
+    st.divider()
+    st.subheader("Compare groups")
+
+    if categorical_columns:
+        group_col = st.selectbox(
+            "Choose a group",
+            categorical_columns,
+            key="analytics_group",
+        )
+
+        group_summary = (
+            df.groupby(group_col, dropna=False)[selected_score]
+            .agg(["mean", "median", "count"])
+            .reset_index()
+            .rename(columns={
+                "mean": "Average",
+                "median": "Median",
+                "count": "Student Count",
+            })
+            .sort_values("Average", ascending=False)
+        )
+
+        fig = px.bar(
+            group_summary,
+            x=group_col,
+            y="Average",
+            color="Average",
+            color_continuous_scale="Blues",
+            hover_data=["Median", "Student Count"],
+            title=f"Average {selected_score} by {group_col}",
+        )
+
+        st.plotly_chart(
+            fig_style(fig, 420),
+            use_container_width=True,
+        )
+
+        st.dataframe(
+            group_summary,
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No categorical features are available for group comparison.")
+
 
 # ============================================================
-# MACHINE LEARNING
+# MACHINE LEARNING PREDICTION
 # ============================================================
 
 elif page == "ML Prediction":
-    st.markdown('<div class="section-label">PREDICTIVE INTELLIGENCE</div>',
-                unsafe_allow_html=True)
-    st.title("Machine learning studio")
-    st.caption(
-        "Train a regression model on a selected target and inspect held-out "
-        "test-set performance. Model quality depends on dataset suitability."
+    st.markdown('<div class="section-label">Machine learning studio</div>', unsafe_allow_html=True)
+    st.header("Performance Prediction")
+    st.write(
+        "Train regression models, compare evaluation metrics and estimate "
+        "a numeric academic outcome from selected features."
     )
 
-    all_numeric = numeric_columns(df)
-    targets = suggested_target_columns(df)
+    target_candidates = identify_target_candidates(df)
 
-    if not targets:
-        targets = [
-            col for col in all_numeric
-            if not is_identifier(col) and not is_derived(col)
-        ]
+    if len(numeric_columns) < 1:
+        st.warning("A numeric target is required for regression.")
+        st.stop()
 
-    if len(filtered_df) < 15:
+    if not target_candidates:
         st.warning(
-            "At least 15 filtered rows are recommended for a basic train/test "
-            "evaluation. Relax filters or use a larger dataset."
+            "No likely academic score target was detected. Select a suitable "
+            "numeric target manually below."
         )
+        target_candidates = numeric_columns
 
-    if not targets:
-        st.warning(
-            "No suitable numeric prediction target was detected. "
-            "Check the dataset columns and choose a numeric outcome variable."
-        )
-    else:
-        default_target = targets[0]
+    c1, c2 = st.columns([1, 1])
+
+    with c1:
         target = st.selectbox(
-            "Prediction target",
-            targets,
-            index=0,
-            help=(
-                "Choose the numeric outcome you want to predict. "
-                "Avoid derived totals or columns that directly reveal the target."
-            ),
+            "Target to predict",
+            options=target_candidates,
+            key="ml_target",
+            help="Choose the numeric outcome you want the model to predict.",
         )
 
-        st.markdown("### Evaluation settings")
+    with c2:
+        test_size = st.slider(
+            "Test data percentage",
+            min_value=10,
+            max_value=40,
+            value=20,
+            step=5,
+        ) / 100
 
-        c1, c2, c3 = st.columns(3)
+    # Prevent direct target leakage by default.
+    feature_candidates = [
+        c for c in df.columns
+        if c != target
+        and not any(
+            token in c.lower()
+            for token in [
+                "student_id", "studentid", "roll_no", "roll_number",
+                "registration_id", "record_id"
+            ]
+        )
+    ]
 
-        with c1:
-            test_size_pct = st.select_slider(
-                "Test set size",
-                options=[20, 25, 30],
-                value=20,
-                format_func=lambda x: f"{x}%",
-            )
+    if not feature_candidates:
+        st.error("No features are available after excluding the target.")
+        st.stop()
 
-        with c2:
-            trees = st.select_slider(
-                "Number of trees",
-                options=[100, 200, 300],
-                value=200,
-            )
+    st.markdown("#### Select model features")
 
-        with c3:
-            seed = st.number_input(
-                "Random seed",
-                min_value=1,
-                max_value=99999,
-                value=42,
-                step=1,
-            )
+    default_features = [
+        c for c in feature_candidates
+        if not any(
+            hint in c.lower()
+            for hint in [
+                "total_score", "total_marks", "average_score",
+                "average_marks", "overall_score", "overall_average",
+                "final_score", "final_result",
+            ]
+        )
+    ]
 
-        # Avoid target leakage by removing likely derived fields and IDs.
-        feature_candidates = [
-            col for col in df.columns
-            if col != target
-            and not is_identifier(col)
-            and not is_derived(col)
-        ]
+    if not default_features:
+        default_features = feature_candidates
 
-        # Explicitly remove columns that may directly reveal a score target.
-        # For G3, G1 and G2 are legitimate prior grades but can make the
-        # prediction task easier; user must decide whether they are available
-        # at the intended prediction time.
-        related_grade_cols = {
-            "g1": {"g2", "g3"},
-            "g2": {"g3"},
-            "g3": set(),
-        }
-        target_lower = target.lower()
-        remove_names = related_grade_cols.get(target_lower, set())
+    selected_features = st.multiselect(
+        "Features used for prediction",
+        options=feature_candidates,
+        default=default_features,
+        help=(
+            "Avoid columns calculated directly from the target, since "
+            "they can cause data leakage and misleading evaluation scores."
+        ),
+    )
 
-        feature_candidates = [
-            col for col in feature_candidates
-            if col.lower() not in remove_names
-        ]
+    available_models = [
+        "Random Forest",
+        "Extra Trees",
+        "Decision Tree",
+        "Ridge Regression",
+        "Linear Regression",
+    ]
 
-        if not feature_candidates:
-            st.warning("No eligible feature columns remain for this target.")
+    selected_models = st.multiselect(
+        "Models to compare",
+        options=available_models,
+        default=["Random Forest", "Linear Regression"],
+    )
+
+    if target in selected_features:
+        st.error("The target cannot be included as an input feature.")
+        st.stop()
+
+    st.info(
+        "Evaluation metrics are calculated on a held-out test split. "
+        "Results depend on dataset size, quality, feature selection and "
+        "the suitability of the target."
+    )
+
+    if st.button(
+        "Train and evaluate models",
+        type="primary",
+        use_container_width=True,
+    ):
+        if not selected_features:
+            st.error("Select at least one input feature.")
+        elif not selected_models:
+            st.error("Select at least one model.")
         else:
-            selected_features = st.multiselect(
-                "Model features",
-                feature_candidates,
-                default=feature_candidates,
-                help=(
-                    "For a fair prediction task, choose only fields that would "
-                    "be known at prediction time. Exclude future scores, "
-                    "post-outcome fields, identifiers, and target-derived fields."
-                ),
+            with st.spinner("Training and evaluating models..."):
+                try:
+                    result = train_regression_models(
+                        df=df,
+                        target=target,
+                        features=selected_features,
+                        test_size=test_size,
+                        model_names=selected_models,
+                    )
+                    st.session_state["ml_result"] = result
+                    st.session_state["ml_target"] = target
+                    st.session_state["ml_features"] = result["features"]
+                    st.success("Model training completed.")
+                except Exception as exc:
+                    st.error(f"Model training failed: {exc}")
+
+    result = st.session_state.get("ml_result")
+
+    if result is not None and st.session_state.get("ml_target") == target:
+        metrics = result["metrics"]
+        fitted_models = result["models"]
+        best_model_name = result["best_model"]
+
+        st.divider()
+        st.subheader("Model evaluation")
+
+        if best_model_name:
+            best_row = metrics[metrics["Model"] == best_model_name].iloc[0]
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Best model by MAE", best_model_name)
+            m2.metric("Mean Absolute Error", format_number(best_row["MAE"]))
+            m3.metric("R² Score", format_number(best_row["R² Score"]))
+
+        st.dataframe(
+            metrics,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        valid_metrics = metrics.dropna(subset=["MAE"])
+
+        if not valid_metrics.empty:
+            left, right = st.columns(2)
+
+            with left:
+                fig = px.bar(
+                    valid_metrics,
+                    x="Model",
+                    y="MAE",
+                    color="Model",
+                    title="Model comparison: lower MAE is better",
+                    color_discrete_sequence=CHART_COLORS,
+                )
+                st.plotly_chart(
+                    fig_style(fig, 380),
+                    use_container_width=True,
+                )
+
+            with right:
+                fig = px.bar(
+                    valid_metrics,
+                    x="Model",
+                    y="R² Score",
+                    color="Model",
+                    title="R² score comparison",
+                    color_discrete_sequence=CHART_COLORS,
+                )
+                st.plotly_chart(
+                    fig_style(fig, 380),
+                    use_container_width=True,
+                )
+
+        if best_model_name and best_model_name in fitted_models:
+            y_test = result["y_test"]
+            y_pred = result["predictions"][best_model_name]
+
+            actual_vs_predicted = pd.DataFrame({
+                "Actual": np.asarray(y_test),
+                "Predicted": np.asarray(y_pred),
+            })
+
+            fig = px.scatter(
+                actual_vs_predicted,
+                x="Actual",
+                y="Predicted",
+                opacity=0.75,
+                title=f"Actual vs predicted — {best_model_name}",
             )
 
-            st.info(
-                "The model is evaluated on a held-out test set. Missing feature "
-                "values are imputed within the training pipeline. R² can be "
-                "negative when predictions perform worse than a test-set mean baseline."
+            minimum = min(
+                actual_vs_predicted["Actual"].min(),
+                actual_vs_predicted["Predicted"].min(),
+            )
+            maximum = max(
+                actual_vs_predicted["Actual"].max(),
+                actual_vs_predicted["Predicted"].max(),
             )
 
-            train_clicked = st.button(
-                "Train and evaluate model",
-                type="primary",
+            fig.add_trace(
+                go.Scatter(
+                    x=[minimum, maximum],
+                    y=[minimum, maximum],
+                    mode="lines",
+                    name="Ideal prediction",
+                    line=dict(color="#fb7185", dash="dash"),
+                )
+            )
+
+            st.plotly_chart(
+                fig_style(fig, 430),
                 use_container_width=True,
             )
 
-            if train_clicked:
-                if len(selected_features) == 0:
-                    st.error("Select at least one model feature.")
-                else:
-                    model_data = filtered_df[
-                        selected_features + [target]
-                    ].copy()
+            residuals = (
+                actual_vs_predicted["Actual"]
+                - actual_vs_predicted["Predicted"]
+            )
 
-                    # Remove rows without a valid target; impute features
-                    # inside the pipeline to prevent train/test leakage.
-                    model_data[target] = pd.to_numeric(
-                        model_data[target], errors="coerce"
-                    )
-                    model_data = model_data.dropna(subset=[target])
+            residual_df = pd.DataFrame({"Prediction Error": residuals})
 
-                    if len(model_data) < 15:
-                        st.error(
-                            "Not enough valid target rows. At least 15 are "
-                            "recommended for this simple evaluation."
-                        )
-                    elif model_data[target].nunique() < 2:
-                        st.error(
-                            "The selected target has fewer than two unique "
-                            "values. Regression evaluation is not meaningful."
-                        )
-                    else:
-                        X = model_data[selected_features]
-                        y = model_data[target]
+            fig = px.histogram(
+                residual_df,
+                x="Prediction Error",
+                nbins=30,
+                title="Prediction error distribution",
+                color_discrete_sequence=["#818cf8"],
+            )
+            st.plotly_chart(
+                fig_style(fig, 350),
+                use_container_width=True,
+            )
 
-                        numeric_features = X.select_dtypes(
-                            include=np.number
-                        ).columns.tolist()
-                        categorical_features = [
-                            col for col in selected_features
-                            if col not in numeric_features
-                        ]
+            predictions_df = result["X_test"].copy()
+            predictions_df["Actual"] = np.asarray(y_test)
+            predictions_df["Predicted"] = np.asarray(y_pred)
+            predictions_df["Prediction Error"] = residuals.to_numpy()
 
-                        transformers = []
+            make_download_button(
+                "Download test predictions",
+                dataframe_to_csv(predictions_df),
+                "student_model_predictions.csv",
+                "text/csv",
+                "prediction_download",
+            )
 
-                        if numeric_features:
-                            numeric_pipeline = Pipeline([
-                                ("imputer", SimpleImputer(strategy="median")),
-                            ])
-                            transformers.append(
-                                ("numeric", numeric_pipeline, numeric_features)
-                            )
+            importance = get_feature_importance(
+                fitted_models[best_model_name],
+                result["features"],
+            )
 
-                        if categorical_features:
-                            categorical_pipeline = Pipeline([
-                                ("imputer", SimpleImputer(strategy="most_frequent")),
-                                ("encoder", OneHotEncoder(
-                                    handle_unknown="ignore",
-                                    sparse_output=False,
-                                )),
-                            ])
-                            transformers.append(
-                                ("categorical", categorical_pipeline, categorical_features)
-                            )
+            if not importance.empty:
+                st.subheader("Important model features")
 
-                        if not transformers:
-                            st.error("No usable features were found.")
-                        else:
-                            preprocessing = ColumnTransformer(
-                                transformers=transformers,
-                                remainder="drop",
-                            )
-
-                            model = Pipeline([
-                                ("preprocessing", preprocessing),
-                                ("regressor", RandomForestRegressor(
-                                    n_estimators=int(trees),
-                                    random_state=int(seed),
-                                    n_jobs=-1,
-                                    min_samples_leaf=2,
-                                )),
-                            ])
-
-                            try:
-                                X_train, X_test, y_train, y_test = train_test_split(
-                                    X,
-                                    y,
-                                    test_size=test_size_pct / 100,
-                                    random_state=int(seed),
-                                )
-
-                                model.fit(X_train, y_train)
-                                predictions = model.predict(X_test)
-
-                                mae = mean_absolute_error(y_test, predictions)
-                                r2 = (
-                                    r2_score(y_test, predictions)
-                                    if len(y_test) >= 2
-                                    else np.nan
-                                )
-
-                                results = pd.DataFrame({
-                                    "Actual": y_test.to_numpy(),
-                                    "Predicted": predictions,
-                                    "Absolute Error": np.abs(
-                                        y_test.to_numpy() - predictions
-                                    ),
-                                })
-
-                                st.session_state["ml_result"] = {
-                                    "target": target,
-                                    "features": selected_features,
-                                    "mae": float(mae),
-                                    "r2": float(r2) if pd.notna(r2) else None,
-                                    "model": model,
-                                    "results": results,
-                                    "feature_columns": selected_features,
-                                    "train_rows": len(X_train),
-                                    "test_rows": len(X_test),
-                                    "target_min": float(y.min()),
-                                    "target_max": float(y.max()),
-                                }
-
-                            except Exception as exc:
-                                st.error(
-                                    "Model training failed. Check the selected "
-                                    f"columns and data types. Details: {exc}"
-                                )
-
-            result = st.session_state.get("ml_result")
-
-            if result and result.get("target") == target:
-                st.markdown("### Evaluation results")
-
-                r1, r2_col, r3, r4 = st.columns(4)
-
-                with r1:
-                    show_metric(
-                        "MAE",
-                        f"{result['mae']:.3f}",
-                        "Lower is generally better",
-                    )
-
-                with r2_col:
-                    r2_value = result["r2"]
-                    show_metric(
-                        "R² SCORE",
-                        f"{r2_value:.3f}" if r2_value is not None else "N/A",
-                        "Closer to 1 can indicate better fit",
-                    )
-
-                with r3:
-                    show_metric(
-                        "TRAIN ROWS",
-                        f"{result['train_rows']:,}",
-                        "Training partition",
-                    )
-
-                with r4:
-                    show_metric(
-                        "TEST ROWS",
-                        f"{result['test_rows']:,}",
-                        "Unseen evaluation partition",
-                    )
-
-                results_df = result["results"]
-
-                left, right = st.columns(2)
-
-                with left:
-                    fig = px.scatter(
-                        results_df,
-                        x="Actual",
-                        y="Predicted",
-                        title="Actual vs predicted",
-                        color_discrete_sequence=["#67e8f9"],
-                        hover_data=["Absolute Error"],
-                    )
-
-                    low = min(
-                        results_df["Actual"].min(),
-                        results_df["Predicted"].min(),
-                    )
-                    high = max(
-                        results_df["Actual"].max(),
-                        results_df["Predicted"].max(),
-                    )
-
-                    fig.add_trace(go.Scatter(
-                        x=[low, high],
-                        y=[low, high],
-                        mode="lines",
-                        name="Ideal prediction",
-                        line=dict(color="#fb7185", dash="dash"),
-                    ))
-
-                    st.plotly_chart(
-                        chart_layout(fig, 420),
-                        use_container_width=True,
-                    )
-
-                with right:
-                    fig = px.histogram(
-                        results_df,
-                        x="Absolute Error",
-                        nbins=20,
-                        title="Distribution of absolute errors",
-                        color_discrete_sequence=["#60a5fa"],
-                    )
-                    st.plotly_chart(
-                        chart_layout(fig, 420),
-                        use_container_width=True,
-                    )
-
-                st.markdown("### Test-set predictions")
-                st.dataframe(
-                    results_df.round(4),
+                fig = px.bar(
+                    importance.sort_values("Importance"),
+                    x="Importance",
+                    y="Feature",
+                    orientation="h",
+                    title="Model feature importance",
+                    color="Importance",
+                    color_continuous_scale="Blues",
+                )
+                st.plotly_chart(
+                    fig_style(fig, max(350, len(importance) * 25)),
                     use_container_width=True,
-                    hide_index=True,
                 )
 
-                st.download_button(
-                    "⬇ Download test-set predictions",
-                    data=csv_bytes(results_df),
-                    file_name="student_model_predictions.csv",
-                    mime="text/csv",
+        st.divider()
+        st.subheader("Predict a new record")
+
+        best_model = (
+            fitted_models.get(best_model_name)
+            if best_model_name else None
+        )
+
+        if best_model is None:
+            st.info("No model was successfully trained for new predictions.")
+        else:
+            model_features = result["features"]
+            form_values = {}
+
+            with st.form("new_prediction_form"):
+                st.write(
+                    "Enter values for the selected features. The trained "
+                    "model will estimate the chosen target."
                 )
 
-                st.markdown("### Generate a new prediction")
+                columns = st.columns(2)
 
-                st.caption(
-                    "Enter a new student's feature values. Numeric inputs default "
-                    "to the training dataset median; categorical inputs default "
-                    "to the most frequent category."
-                )
+                for index, feature in enumerate(model_features):
+                    with columns[index % 2]:
+                        if pd.api.types.is_numeric_dtype(df[feature]):
+                            valid_values = df[feature].dropna()
+                            default_value = (
+                                float(valid_values.median())
+                                if not valid_values.empty else 0.0
+                            )
 
-                input_values = {}
+                            form_values[feature] = st.number_input(
+                                feature,
+                                value=default_value,
+                                key=f"new_prediction_{feature}",
+                            )
+                        else:
+                            options = (
+                                df[feature]
+                                .dropna()
+                                .astype(str)
+                                .unique()
+                                .tolist()
+                            )
+                            options = sorted(options)
 
-                with st.form("prediction_form"):
-                    cols = st.columns(2)
-
-                    for idx, feature in enumerate(result["feature_columns"]):
-                        series = df[feature]
-                        with cols[idx % 2]:
-                            if pd.api.types.is_numeric_dtype(series):
-                                clean_series = pd.to_numeric(
-                                    series, errors="coerce"
-                                ).dropna()
-
-                                default = (
-                                    float(clean_series.median())
-                                    if not clean_series.empty
-                                    else 0.0
-                                )
-
-                                input_values[feature] = st.number_input(
-                                    str(feature),
-                                    value=default,
-                                    key=f"new_{feature}",
+                            if options:
+                                form_values[feature] = st.selectbox(
+                                    feature,
+                                    options=options,
+                                    key=f"new_prediction_{feature}",
                                 )
                             else:
-                                options = (
-                                    series.dropna().astype(str)
-                                    .value_counts()
-                                    .index.tolist()
-                                )
+                                form_values[feature] = ""
 
-                                options = options[:200]
+                submitted = st.form_submit_button(
+                    "Generate prediction",
+                    use_container_width=True,
+                )
 
-                                if options:
-                                    input_values[feature] = st.selectbox(
-                                        str(feature),
-                                        options,
-                                        key=f"new_{feature}",
-                                    )
-                                else:
-                                    input_values[feature] = st.text_input(
-                                        str(feature),
-                                        key=f"new_{feature}",
-                                    )
-
-                    predict_clicked = st.form_submit_button(
-                        "Predict outcome",
-                        use_container_width=True,
-                    )
-
-                if predict_clicked:
+            if submitted:
+                try:
                     new_row = pd.DataFrame(
-                        [input_values],
-                        columns=result["feature_columns"],
+                        [form_values],
+                        columns=model_features,
                     )
 
-                    try:
-                        predicted_value = result["model"].predict(new_row)[0]
+                    prediction = float(best_model.predict(new_row)[0])
 
-                        st.success(
-                            f"Estimated {result['target']}: "
-                            f"{predicted_value:,.3f}"
-                        )
+                    st.success(
+                        f"Estimated {target}: {prediction:,.2f}"
+                    )
+                    st.caption(
+                        "This is a model estimate, not a guaranteed "
+                        "student outcome. Predictions may be unreliable "
+                        "for records unlike the training data."
+                    )
 
-                        st.caption(
-                            "This is a model estimate, not a guaranteed outcome. "
-                            "Its reliability depends on training data, feature "
-                            "availability and evaluation performance."
-                        )
+                except Exception as exc:
+                    st.error(f"Prediction could not be generated: {exc}")
 
-                    except Exception as exc:
-                        st.error(f"Prediction failed: {exc}")
 
-                with st.expander("Feature importance"):
-                    try:
-                        fitted_preprocessor = result["model"].named_steps[
-                            "preprocessing"
-                        ]
-                        fitted_model = result["model"].named_steps["regressor"]
+# ============================================================
+# STUDENT RISK DETECTION
+# ============================================================
 
-                        names = fitted_preprocessor.get_feature_names_out()
-                        importances = fitted_model.feature_importances_
+elif page == "Student Risk":
+    st.markdown('<div class="section-label">Academic support insights</div>', unsafe_allow_html=True)
+    st.header("Student Risk Detection")
+    st.write(
+        "Use a selected academic score to identify records that may benefit "
+        "from additional academic support."
+    )
 
-                        importance_df = pd.DataFrame({
-                            "Feature": names,
-                            "Importance": importances,
-                        }).sort_values("Importance", ascending=False).head(25)
+    score_candidates = get_score_columns(df)
 
-                        fig = px.bar(
-                            importance_df.sort_values("Importance"),
-                            x="Importance",
-                            y="Feature",
-                            orientation="h",
-                            title="Random Forest feature importance",
-                            color="Importance",
-                            color_continuous_scale="Blues",
-                        )
+    if not score_candidates:
+        st.warning("A numeric score or marks column is required.")
+        st.stop()
 
-                        st.plotly_chart(
-                            chart_layout(fig, 480),
-                            use_container_width=True,
-                        )
+    score_col = st.selectbox(
+        "Academic score feature",
+        score_candidates,
+        key="risk_score",
+    )
 
-                        st.caption(
-                            "Feature importance indicates model reliance, not "
-                            "causality or the effect of changing a feature."
-                        )
+    score_data = df[score_col].dropna()
 
-                    except Exception as exc:
-                        st.info(f"Feature importance unavailable: {exc}")
+    if score_data.empty or score_data.nunique() < 2:
+        st.warning("The selected feature does not contain enough variation.")
+        st.stop()
+
+    threshold_method = st.radio(
+        "Choose how to define a low-score threshold",
+        ["Set threshold manually", "Use lower quartile (25th percentile)"],
+        horizontal=True,
+    )
+
+    if threshold_method == "Set threshold manually":
+        threshold = st.number_input(
+            "Low-score threshold",
+            value=float(score_data.quantile(0.25)),
+        )
+    else:
+        threshold = float(score_data.quantile(0.25))
+        st.info(f"Lower-quartile threshold: **{threshold:.2f}**")
+
+    risk_df = df.copy()
+    risk_df["Academic Risk Indicator"] = np.where(
+        risk_df[score_col].isna(),
+        "Score Missing",
+        np.where(
+            risk_df[score_col] < threshold,
+            "Needs Attention",
+            "No Low-Score Flag",
+        ),
+    )
+
+    needs_attention = risk_df[
+        risk_df["Academic Risk Indicator"] == "Needs Attention"
+    ]
+    missing_score = risk_df[
+        risk_df["Academic Risk Indicator"] == "Score Missing"
+    ]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Records Reviewed", f"{len(risk_df):,}")
+    c2.metric("Below Threshold", f"{len(needs_attention):,}")
+    c3.metric("Missing Scores", f"{len(missing_score):,}")
+
+    risk_percentage = (
+        len(needs_attention) / max(1, len(risk_df)) * 100
+    )
+
+    st.progress(min(1.0, risk_percentage / 100))
+    st.caption(
+        f"{risk_percentage:.1f}% of displayed records are below the "
+        "selected score threshold."
+    )
+
+    st.divider()
+
+    left, right = st.columns(2)
+
+    with left:
+        risk_counts = (
+            risk_df["Academic Risk Indicator"]
+            .value_counts()
+            .rename_axis("Indicator")
+            .reset_index(name="Records")
+        )
+
+        fig = px.pie(
+            risk_counts,
+            names="Indicator",
+            values="Records",
+            hole=0.6,
+            color_discrete_sequence=["#fb7185", "#34d399", "#fbbf24"],
+            title="Academic score indicators",
+        )
+        st.plotly_chart(
+            fig_style(fig, 380),
+            use_container_width=True,
+        )
+
+    with right:
+        fig = px.histogram(
+            df,
+            x=score_col,
+            nbins=30,
+            color_discrete_sequence=["#38bdf8"],
+            title=f"{score_col} distribution and threshold",
+        )
+
+        fig.add_vline(
+            x=threshold,
+            line_dash="dash",
+            line_color="#fb7185",
+            annotation_text="Selected threshold",
+        )
+
+        st.plotly_chart(
+            fig_style(fig, 380),
+            use_container_width=True,
+        )
+
+    st.subheader("Records flagged for review")
+
+    if needs_attention.empty:
+        st.success("No records fall below the current threshold.")
+    else:
+        st.dataframe(
+            needs_attention,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        make_download_button(
+            "Download flagged records",
+            dataframe_to_csv(needs_attention),
+            "student_records_for_review.csv",
+            "text/csv",
+            "risk_download",
+        )
+
+    st.warning(
+        "These indicators are only screening aids based on the chosen "
+        "score and threshold. They are not diagnoses, definitive risk "
+        "classifications or substitutes for educator review. Consider "
+        "context, data quality and student circumstances before taking action."
+    )
+
 
 # ============================================================
 # DATA QUALITY
 # ============================================================
 
 elif page == "Data Quality":
-    st.markdown('<div class="section-label">DATA GOVERNANCE</div>',
-                unsafe_allow_html=True)
-    st.title("Data quality center")
-    st.caption("Inspect missing values, duplicates, data types and potential outliers.")
-
-    missing_count = filtered_df.isna().sum()
-    missing_pct = filtered_df.isna().mean() * 100
-    duplicate_count = int(filtered_df.duplicated().sum())
-
-    a, b, c = st.columns(3)
-    a.metric("Missing cells", f"{int(missing_count.sum()):,}")
-    b.metric("Duplicate rows", f"{duplicate_count:,}")
-    c.metric(
-        "Completeness",
-        f"{(1 - filtered_df.isna().sum().sum() / max(filtered_df.size, 1)) * 100:.2f}%",
+    st.markdown('<div class="section-label">Data health and preparation</div>', unsafe_allow_html=True)
+    st.header("Data Quality Center")
+    st.write(
+        "Inspect missing values, duplicate records and potential numerical "
+        "outliers. Create a cleaned copy for download without modifying "
+        "your source dataset."
     )
 
-    quality_df = pd.DataFrame({
-        "Column": filtered_df.columns,
-        "Data type": [str(filtered_df[c].dtype) for c in filtered_df.columns],
-        "Missing count": [int(missing_count[c]) for c in filtered_df.columns],
-        "Missing (%)": [round(float(missing_pct[c]), 2) for c in filtered_df.columns],
-        "Unique values": [
-            int(filtered_df[c].nunique(dropna=True))
-            for c in filtered_df.columns
-        ],
-    })
+    missing_table = make_profile(df)
+    missing_table = missing_table.sort_values(
+        "Missing", ascending=False
+    )
 
-    st.markdown("### Column-level quality report")
+    missing_total = int(df.isna().sum().sum())
+    duplicate_total = int(df.duplicated().sum())
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Missing Cells", f"{missing_total:,}")
+    c2.metric("Duplicate Rows", f"{duplicate_total:,}")
+    c3.metric(
+        "Complete Columns",
+        f"{int((df.isna().sum() == 0).sum()):,}",
+    )
+
+    st.subheader("Missing-value analysis")
+
     st.dataframe(
-        quality_df.sort_values("Missing (%)", ascending=False),
+        missing_table[[
+            "Column", "Data Type", "Non-Null",
+            "Missing", "Missing %", "Unique Values"
+        ]],
         use_container_width=True,
         hide_index=True,
     )
 
-    st.download_button(
-        "⬇ Download quality report",
-        data=csv_bytes(quality_df),
-        file_name="student_data_quality_report.csv",
-        mime="text/csv",
+    nonzero_missing = missing_table[missing_table["Missing"] > 0]
+
+    if not nonzero_missing.empty:
+        fig = px.bar(
+            nonzero_missing.sort_values("Missing"),
+            x="Missing",
+            y="Column",
+            orientation="h",
+            color="Missing %",
+            color_continuous_scale=["#34d399", "#fbbf24", "#fb7185"],
+            title="Missing values by feature",
+        )
+        st.plotly_chart(
+            fig_style(fig, max(350, len(nonzero_missing) * 28)),
+            use_container_width=True,
+        )
+    else:
+        st.success("No missing values were found in the filtered dataset.")
+
+    st.divider()
+    st.subheader("Potential numerical outliers")
+
+    outlier_rows = []
+
+    for col in numeric_columns:
+        series = df[col].dropna()
+
+        if len(series) < 4:
+            continue
+
+        q1 = series.quantile(0.25)
+        q3 = series.quantile(0.75)
+        iqr = q3 - q1
+
+        if iqr == 0:
+            outlier_count = 0
+        else:
+            lower = q1 - 1.5 * iqr
+            upper = q3 + 1.5 * iqr
+            outlier_count = int(
+                ((series < lower) | (series > upper)).sum()
+            )
+
+        outlier_rows.append({
+            "Feature": col,
+            "Q1": q1,
+            "Q3": q3,
+            "IQR": iqr,
+            "Potential Outliers": outlier_count,
+            "Outlier %": round(
+                outlier_count / max(1, len(series)) * 100, 2
+            ),
+        })
+
+    if outlier_rows:
+        outlier_df = pd.DataFrame(outlier_rows).sort_values(
+            "Potential Outliers", ascending=False
+        )
+        st.dataframe(
+            outlier_df,
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("Not enough numerical data to calculate outlier indicators.")
+
+    st.caption(
+        "The IQR method flags statistical extremes. An outlier is not "
+        "necessarily an error and should be reviewed before removal."
     )
 
-    st.markdown("### Potential numeric outliers")
+    st.divider()
+    st.subheader("Create a cleaned copy")
 
-    if nums:
-        outlier_rows = []
-
-        for col in nums:
-            series = pd.to_numeric(filtered_df[col], errors="coerce").dropna()
-
-            if len(series) < 4:
-                outlier_rows.append({
-                    "Column": col,
-                    "Q1": np.nan,
-                    "Q3": np.nan,
-                    "IQR": np.nan,
-                    "Potential outliers": 0,
-                    "Method": "Not enough values",
-                })
-                continue
-
-            q1 = series.quantile(0.25)
-            q3 = series.quantile(0.75)
-            iqr = q3 - q1
-
-            if iqr == 0:
-                outlier_count = 0
-            else:
-                lower = q1 - 1.5 * iqr
-                upper = q3 + 1.5 * iqr
-                outlier_count = int(((series < lower) | (series > upper)).sum())
-
-            outlier_rows.append({
-                "Column": col,
-                "Q1": round(float(q1), 3),
-                "Q3": round(float(q3), 3),
-                "IQR": round(float(iqr), 3),
-                "Potential outliers": outlier_count,
-                "Method": "1.5 × IQR",
-            })
-
-        outlier_df = pd.DataFrame(outlier_rows)
-        st.dataframe(outlier_df, use_container_width=True, hide_index=True)
-
-        st.download_button(
-            "⬇ Download outlier report",
-            data=csv_bytes(outlier_df),
-            file_name="student_outlier_report.csv",
-            mime="text/csv",
-        )
-
-    st.markdown("### Create a cleaned copy")
-
-    st.write(
-        "Cleaning options below create a downloadable copy. They do not overwrite "
-        "the original repository dataset."
+    remove_duplicates = st.checkbox(
+        "Remove exact duplicate rows",
+        value=True,
+    )
+    fill_missing = st.checkbox(
+        "Fill missing values using median/mode where possible",
+        value=False,
     )
 
-    drop_duplicates = st.checkbox("Remove exact duplicate rows", value=True)
-    drop_empty_rows = st.checkbox("Remove rows that are entirely empty", value=True)
+    cleaned_df = get_cleaned_copy(
+        df,
+        remove_duplicates=remove_duplicates,
+        fill_missing=fill_missing,
+    )
 
-    if st.button("Prepare cleaned dataset", type="primary"):
-        cleaned = filtered_df.copy()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Original filtered rows", f"{len(df):,}")
+    c2.metric("Cleaned rows", f"{len(cleaned_df):,}")
+    c3.metric(
+        "Rows removed",
+        f"{max(0, len(df) - len(cleaned_df)):,}",
+    )
 
-        before = len(cleaned)
+    st.dataframe(
+        cleaned_df.head(20),
+        use_container_width=True,
+        hide_index=True,
+    )
 
-        if drop_empty_rows:
-            cleaned = cleaned.dropna(how="all")
+    make_download_button(
+        "Download cleaned dataset",
+        dataframe_to_csv(cleaned_df),
+        "cleaned_student_performance.csv",
+        "text/csv",
+        "cleaned_dataset_download",
+    )
 
-        if drop_duplicates:
-            cleaned = cleaned.drop_duplicates()
-
-        removed = before - len(cleaned)
-
-        st.success(
-            f"Cleaned copy prepared: {len(cleaned):,} rows remain; "
-            f"{removed:,} rows removed."
-        )
-
-        st.download_button(
-            "⬇ Download cleaned dataset",
-            data=csv_bytes(cleaned),
-            file_name="cleaned_student_performance.csv",
-            mime="text/csv",
-        )
-
-        st.caption(
-            "Missing values in individual cells are not automatically removed "
-            "or imputed by this cleaning action."
-        )
 
 # ============================================================
 # EXPORT CENTER
 # ============================================================
 
 elif page == "Export Center":
-    st.markdown('<div class="section-label">REPORTING WORKSPACE</div>',
-                unsafe_allow_html=True)
-    st.title("Export center")
-    st.caption("Download the current filtered data and reusable analysis reports.")
-
-    st.markdown("### Current workspace")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Rows", f"{len(filtered_df):,}")
-    c2.metric("Columns", f"{len(filtered_df.columns):,}")
-    c3.metric(
-        "Missing cells",
-        f"{int(filtered_df.isna().sum().sum()):,}",
+    st.markdown('<div class="section-label">Reports and deliverables</div>', unsafe_allow_html=True)
+    st.header("Export Center")
+    st.write(
+        "Download filtered records, data profiles, descriptive statistics "
+        "and analysis summaries for reports and presentations."
     )
 
-    st.markdown("### Download reports")
+    st.subheader("Available exports")
 
     col1, col2 = st.columns(2)
 
@@ -1577,63 +2008,146 @@ elif page == "Export Center":
             """
             <div class="info-card">
                 <h4>Filtered dataset</h4>
-                <p class="muted">Download the currently selected records and columns.</p>
+                <p>All rows currently selected by your sidebar filters.</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.download_button(
-            "⬇ Export filtered CSV",
-            data=csv_bytes(filtered_df),
-            file_name="student_filtered_dataset.csv",
-            mime="text/csv",
-            use_container_width=True,
+
+        make_download_button(
+            "Export filtered CSV",
+            dataframe_to_csv(df),
+            "student_performance_export.csv",
+            "text/csv",
+            "export_dataset",
         )
 
     with col2:
+        profile = make_profile(df)
+
         st.markdown(
             """
             <div class="info-card">
-                <h4>Analysis summary</h4>
-                <p class="muted">Export row counts, missing values and numeric statistics.</p>
+                <h4>Data profile</h4>
+                <p>Column names, data types, missing values and unique counts.</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.download_button(
-            "⬇ Export analysis summary",
-            data=csv_bytes(build_summary(filtered_df)),
-            file_name="student_analysis_summary.csv",
-            mime="text/csv",
-            use_container_width=True,
+
+        make_download_button(
+            "Export data profile",
+            dataframe_to_csv(profile),
+            "student_data_profile.csv",
+            "text/csv",
+            "export_profile",
         )
 
-    st.markdown("### Column profile")
-    profile = pd.DataFrame({
-        "Column": filtered_df.columns,
-        "Data type": [str(filtered_df[c].dtype) for c in filtered_df.columns],
-        "Non-null values": [
-            int(filtered_df[c].notna().sum())
-            for c in filtered_df.columns
-        ],
-        "Missing values": [
-            int(filtered_df[c].isna().sum())
-            for c in filtered_df.columns
-        ],
-        "Unique values": [
-            int(filtered_df[c].nunique(dropna=True))
-            for c in filtered_df.columns
-        ],
-    })
+    st.divider()
 
-    st.dataframe(profile, use_container_width=True, hide_index=True)
+    col1, col2 = st.columns(2)
 
-    st.download_button(
-        "⬇ Export column profile",
-        data=csv_bytes(profile),
-        file_name="student_column_profile.csv",
-        mime="text/csv",
+    with col1:
+        summary = numeric_summary(df)
+
+        st.markdown(
+            """
+            <div class="info-card">
+                <h4>Descriptive statistics</h4>
+                <p>Mean, standard deviation, quartiles and other numerical summaries.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if not summary.empty:
+            make_download_button(
+                "Export statistics",
+                dataframe_to_csv(summary),
+                "student_descriptive_statistics.csv",
+                "text/csv",
+                "export_statistics",
+            )
+        else:
+            st.info("No numeric statistics available.")
+
+    with col2:
+        quality_summary = pd.DataFrame({
+            "Metric": [
+                "Records",
+                "Features",
+                "Missing cells",
+                "Duplicate rows",
+                "Numeric features",
+                "Categorical features",
+            ],
+            "Value": [
+                len(df),
+                len(df.columns),
+                int(df.isna().sum().sum()),
+                int(df.duplicated().sum()),
+                len(get_numeric_columns(df)),
+                len(get_categorical_columns(df)),
+            ],
+        })
+
+        st.markdown(
+            """
+            <div class="info-card">
+                <h4>Data quality summary</h4>
+                <p>A concise overview of the current dataset's quality and structure.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        make_download_button(
+            "Export quality summary",
+            dataframe_to_csv(quality_summary),
+            "student_data_quality_summary.csv",
+            "text/csv",
+            "export_quality",
+        )
+
+    st.divider()
+    st.subheader("Preview report summary")
+
+    numeric = df.select_dtypes(include=np.number)
+    report_lines = [
+        "STUDENTIQ — STUDENT PERFORMANCE ANALYSIS",
+        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Dataset: {dataset_name}",
+        "",
+        "DATASET OVERVIEW",
+        f"Records: {len(df)}",
+        f"Features: {len(df.columns)}",
+        f"Missing cells: {int(df.isna().sum().sum())}",
+        f"Duplicate rows: {int(df.duplicated().sum())}",
+        "",
+        "NUMERIC SUMMARY",
+    ]
+
+    if not numeric.empty:
+        report_lines.append(numeric.describe().round(3).to_string())
+    else:
+        report_lines.append("No numerical columns found.")
+
+    report_text = "\n".join(report_lines)
+
+    st.text_area(
+        "Report text",
+        value=report_text,
+        height=320,
     )
+
+    make_download_button(
+        "Download text report",
+        report_text.encode("utf-8"),
+        "student_performance_report.txt",
+        "text/plain",
+        "export_text_report",
+    )
+
 
 # ============================================================
 # FOOTER
@@ -1643,17 +2157,10 @@ st.divider()
 
 st.markdown(
     """
-    <div style="text-align:center; padding:12px 0 22px 0;">
-        <div style="color:#93c5fd;font-size:12px;font-weight:800;letter-spacing:1.5px;">
-            STUDENT PERFORMANCE ANALYTICS
-        </div>
-        <div style="color:#8da7c8;font-size:11px;margin-top:6px;">
-            Built with Python · Streamlit · Pandas · Plotly · Scikit-learn
-        </div>
-        <div style="color:#7188a5;font-size:10px;margin-top:6px;">
-            Predictions are estimates and should be interpreted alongside
-            data quality, feature availability and model evaluation results.
-        </div>
+    <div class="footer">
+        <b>StudentIQ</b> · Student Performance Analysis & Prediction System<br>
+        Built with Streamlit, Pandas, Plotly and Scikit-learn<br>
+        For educational analytics and decision support only.
     </div>
     """,
     unsafe_allow_html=True,
