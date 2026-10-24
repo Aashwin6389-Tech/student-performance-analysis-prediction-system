@@ -86,7 +86,7 @@ Open the local URL displayed in the terminal, usually `http://localhost:8501`.
 
 ## Live Demo
 
-Add your deployed Streamlit Community Cloud URL here.
+[Open Student Performance Analysis & Prediction System](https://student-performance-analysis-prediction-systemgit-8u6xxods2ead.streamlit.app/https://student-performance-analysis-prediction-systemgit-8u6xxods2ead.streamlit.app/)
 
 ## Future Improvements
 
